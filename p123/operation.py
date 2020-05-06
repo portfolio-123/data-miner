@@ -1,0 +1,774 @@
+import logging
+import p123.data.cons as data_cons
+import utils.misc as misc
+import tkinter as tk
+import p123.data.transform as transform
+from p123.api.client import Client
+from p123.api.client import ClientException
+import p123.util as util
+import datetime
+import p123.mapping.init as mapping_init
+import p123.mapping.data as mapping_data
+import p123.mapping.rank as mapping_rank
+import p123.mapping.screen as mapping_screen
+
+
+class Operation:
+    def __init__(self, *, api_client: Client, data, output, logger: logging.Logger):
+        self._data = data
+        self._logger = logger
+        self._logger.info(f"Running ({self._data['Main']['Operation']})")
+
+        self._result = []
+        self._paused = False
+        self._stopped = False
+        self._finished = False
+        self._api_client = api_client
+        self._output = output
+        self._continue_on_error = self._data['Main']['On Error'].lower() == 'continue' \
+            if 'On Error' in self._data['Main'] else True
+
+        self._init_default_params()
+        if self.has_init_error():
+            return
+        self._init_header_row()
+        self._init_col_setup()
+
+    def _init_default_params(self):
+        self._has_init_error = False
+        try:
+            self._init_params = util.generate_params(
+                data=self._data['Default Settings'], settings=self._data['Default Settings'],
+                api_client=self._api_client, logger=self._logger
+            )
+        except ClientException as e:
+            self._logger.error(e)
+            self._has_init_error = True
+
+    def _init_col_setup(self):
+        self._col_setup = []
+        for idx, column in enumerate(self._header_row):
+            justify = 'right'
+            if misc.is_dict(column):
+                name = column['name']
+                length = max(10, (column['length'] if 'length' in column else len(name)) + 2)
+                if 'justify' in column:
+                    justify = column['justify']
+            else:
+                name = column
+                length = max(10, len(name) + 2)
+            self._col_setup.append({'length': length, 'justify': justify})
+            self._header_row[idx] = name
+
+    def _init_header_row(self):
+        self._header_row = []
+
+    def has_init_error(self):
+        return self._has_init_error
+
+    def pause(self):
+        self._paused = True
+
+    def resume(self):
+        self._paused = False
+
+    def is_paused(self):
+        return self._paused
+
+    def stop(self):
+        self._stopped = True
+
+    def is_finished(self):
+        return self._finished or self._stopped
+
+    def _write_row_to_output(self, row, newline: bool = True):
+        self._output.configure(state='normal')
+        if newline:
+            self._output.insert(tk.END, '\n')
+        for idx, content in enumerate(row):
+            if content is not None:
+                content = f'{content:.2f}' if misc.is_float(content) else str(content)
+            else:
+                content = 'NA'
+            length = self._col_setup[idx]['length']
+            justify = self._col_setup[idx]['justify']
+            self._output.insert(
+                tk.END, content.rjust(length, ' ') if justify == 'right' else content.ljust(length, ' '))
+        self._output.configure(state='disabled')
+
+    def run(self):
+        if self._run():
+            self._finished = True
+            self._logger.info(f"Done ({self._data['Main']['Operation']})")
+
+    def _run(self):
+        return False
+
+    def get_result(self):
+        return self._result
+
+    @staticmethod
+    def init(*, api_client, data, output, logger: logging.Logger):
+        operation = OPERATIONS.get(data['Main']['Operation'].lower())['class'](
+            api_client=api_client, data=data, output=output, logger=logger
+        )
+        return operation if not operation.has_init_error() else None
+
+
+class IterOperation(Operation):
+    _api_item_change_checks = (
+        ('universe', 'ApiUniverse', transform.universe),
+        ('ranking', 'ApiRankingSystem', transform.screen_ranking)
+    )
+
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._iter_idx = 0
+        self._iter_cnt = len(data['Iterations'])
+        self._api_item_changed = {}
+
+    def _run_iter(self, *, iter_data, iter_params):
+        pass
+
+    def _check_api_item_change(self, iter_params):
+        if self._init_params.get('screen'):
+            for change in IterOperation._api_item_change_checks:
+                if self._init_params['screen'].get(change[0]) == change[1]:
+                    if iter_params.get('screen') and iter_params['screen'].get(change[0]) == change[1]:
+                        self._api_item_changed[change[0]] = True
+                    elif self._api_item_changed.get(change[0]):
+                        change[2](
+                            value=self._data['Default Settings'][change[0].capitalize()]['value'],
+                            settings=self._data['Default Settings'], api_client=self._api_client
+                        )
+                        del self._api_item_changed[change[0]]
+
+    def _run(self):
+        while self._iter_idx < self._iter_cnt:
+            if self.is_paused():
+                return
+
+            iter_data = self._data['Iterations'][self._iter_idx]
+            iter_params = None
+            try:
+                iter_params = util.generate_params(
+                    data=iter_data, settings=self._data['Default Settings'],
+                    api_client=self._api_client, logger=self._logger
+                )
+            except ClientException as e:
+                self._logger.error(e)
+
+            try:
+                if iter_params is None:
+                    raise IterationFailedException
+                self._check_api_item_change(iter_params)
+                self._run_iter(iter_data=iter_data, iter_params=iter_params)
+            except OperationPausedException:
+                return
+            except IterationFailedException:
+                if not self._continue_on_error:
+                    return True
+
+            self._iter_idx += 1
+
+        return True
+
+
+class ScreenRollingBacktestOperation(IterOperation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._result.append(self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _init_header_row(self):
+        max_len = 0
+        for iter_idx, iter_data in enumerate(self._data['Iterations']):
+            name_len = len(iter_data['Name'] if 'Name' in iter_data else f'Iteration {iter_idx + 1}')
+            if max_len < name_len:
+                max_len = name_len
+        self._header_row = data_cons.ROLLING_SCREEN_COLUMNS.copy()
+        self._header_row[0] = self._header_row[0].copy()
+        self._header_row[0]['length'] = max_len
+
+    def _run_iter(self, *, iter_data, iter_params):
+        try:
+            params = util.update_iter_params(self._init_params, iter_params)
+            json = self._api_client.screen_rolling_backtest(params)
+            row = util.process_screen_rolling_backtest_result(
+                json, params.get('startDt'), params.get('endDt'))
+            row = [iter_data['Name'] if 'Name' in iter_data else 'Iteration ' + str(self._iter_idx + 1)] + row
+            self._result.append(row)
+            self._write_row_to_output(row)
+            self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
+        except ClientException as e:
+            self._logger.error(e)
+            self._logger.warning(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed")
+            raise IterationFailedException
+
+
+class DataOperation(IterOperation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._init_params['formulas'] = []
+        self._raw_result = {'items': {}}
+
+    def _init_header_row_custom(self):
+        self._header_row = [
+            {'name': 'Date', 'justify': 'left', 'length': 10},
+            {'name': 'Mkt UID', 'justify': 'left', 'length': 10}
+        ]
+        max_len = 0
+        for ticker in self._result[:100]:
+            max_len = max(max_len, len(ticker))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        if self._data['Default Settings'].get('Cusips'):
+            self._header_row.append({'name': 'Cusip', 'justify': 'left', 'length': 9})
+        for idx, data in enumerate(self._data['Iterations']):
+            name = misc.coalesce(data.get('Name'), data['Formula'])
+            self._header_row.append(name if len(name) <= 50 else name[:50])
+        self._init_col_setup()
+        self._result.insert(0, self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _run(self):
+        if super()._run() and self._iter_idx > 0:
+            w_cusips = self._init_params.get('cusips')
+            for idx, date in enumerate(self._raw_result['dates']):
+                for mkt_uid, item in self._raw_result['items'].items():
+                    row = [date, mkt_uid, item['ticker']]
+                    if w_cusips:
+                        row.append(item['cusip'])
+                    for series_data in item['series']:
+                        row.append(series_data[idx])
+                    self._result.append(row)
+            self._init_header_row_custom()
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+            return True
+
+    def _run_iter(self, *, iter_data, iter_params):
+        self._init_params['formulas'].append(iter_data['Formula'])
+        if len(self._init_params['formulas']) == 50 or self._iter_idx + 1 == self._iter_cnt:
+            try:
+                json = self._api_client.data(self._init_params)
+                if 'dates' not in self._raw_result:
+                    self._raw_result['dates'] = json['dates']
+                for mkt_uid, item in json['items'].items():
+                    if mkt_uid not in self._raw_result['items']:
+                        self._raw_result['items'][mkt_uid] = item
+                    else:
+                        self._raw_result['items'][mkt_uid]['series'] += item['series']
+                self._init_params['formulas'] = []
+            except ClientException as e:
+                self._logger.error(e)
+                raise IterationFailedException
+
+
+class RankPerfOperation(IterOperation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        self._buckets = data['Default Settings']['Buckets']
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._run_idx = None
+        self._run_rows = None
+
+    def _init_default_params(self):
+        super()._init_default_params()
+        if self.has_init_error():
+            return
+        if 'screen' not in self._init_params:
+            self._init_params['screen'] = {'type': self._data['Default Settings']['Type']}
+
+    def _init_header_row(self):
+        max_len = 0
+        for name in data_cons.RANK_PERF_METRICS:
+            name_len = len(name)
+            if max_len < name_len:
+                max_len = name_len
+        self._header_row = [{'name': 'Metric', 'justify': 'left', 'length': max_len}]
+        self._header_row.extend(f'Bucket {idx + 1}' for idx in range(self._buckets))
+        self._header_row.append('Universe')
+        self._header_row.append('Benchmark')
+
+    def _run_iter(self, *, iter_data, iter_params):
+        params = util.update_iter_params(self._init_params, iter_params)
+        name = iter_data['Name'] if 'Name' in iter_data else 'Iteration ' + str(self._iter_idx + 1)
+
+        if self._run_idx is None:
+            self._run_idx = 0
+            self._run_rows = []
+            for metric in data_cons.RANK_PERF_METRICS:
+                self._run_rows.append([metric])
+
+        screen_rules = params['screen'].get('rules')
+        params['transPrice'] = 4
+
+        # add one more run to the number of buckets for the universe
+        while self._run_idx < self._buckets + 1:
+            if self.is_paused():
+                raise OperationPausedException
+
+            run_screen_rules = screen_rules.copy() if screen_rules else []
+            if self._run_idx < self._buckets:
+                start = round(100 / self._buckets * self._run_idx, 2)
+                end = round(100 / self._buckets * (self._run_idx + 1), 2)
+                formula =\
+                    'Rank >= {} and Rank <{} {}'.format(start, '=' if self._run_idx == self._buckets - 1 else '', end)
+                run_screen_rules.append({'formula': formula})
+            if run_screen_rules:
+                params['screen']['rules'] = run_screen_rules
+            elif 'rules' in params['screen']:
+                del params['screen']['rules']
+
+            try:
+                json = self._api_client.screen_backtest(params)
+                util.process_rank_perf_result(json, self._run_rows)
+                if self._run_idx == self._buckets:
+                    util.process_rank_perf_result(json, self._run_rows, False)
+                self._logger.info(
+                    f"Iteration {self._iter_idx + 1}/{self._iter_cnt} "
+                    f"run {self._run_idx + 1}/{self._buckets + 1}: success")
+            except ClientException as e:
+                self._logger.error(e)
+                self._logger.warning(
+                    f"Iteration {self._iter_idx + 1}/{self._iter_cnt} "
+                    f"run {self._run_idx + 1}/{self._buckets + 1}: failed")
+                if not self._continue_on_error:
+                    raise IterationFailedException
+                for row in self._run_rows:
+                    row.append(None)
+
+            self._run_idx += 1
+
+        if self._iter_idx > 0:
+            row = []
+            self._result.append(row)
+            self._write_row_to_output(row)
+        row = [name]
+        self._result.append(row)
+        self._write_row_to_output(row, newline=self._iter_idx > 0)
+        self._result.append(self._header_row)
+        self._write_row_to_output(self._header_row)
+        for row in self._run_rows:
+            self._result.append(row)
+            self._write_row_to_output(row)
+
+        self._run_idx = None
+
+
+class RankRanksOperation(Operation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._columns = misc.coalesce(self._data['Default Settings'].get('Columns'), 'ranks').lower()
+        if self._columns != 'ranks':
+            self._init_params['includeNodeDetails'] = True
+        self._include_names = self._data['Default Settings'].get('Include Names')
+        if self._include_names:
+            self._include_names = self._include_names['value']
+
+    def _init_header_row_custom(self, json):
+        self._header_row = [{'name': 'Mkt UID', 'justify': 'left', 'length': 10}]
+        max_len = 0
+        for ticker in json['tickers'][:100]:
+            max_len = max(max_len, len(ticker))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        if self._include_names:
+            max_len = 0
+            for name in json['names'][:100]:
+                max_len = max(max_len, len(name))
+            self._header_row.append({'name': 'Name', 'justify': 'left', 'length': max_len})
+        self._header_row += [
+            '#NAs',
+            'Final Stmt',
+            '100% rank'
+        ]
+        if self._columns != 'ranks':
+            self._add_nodes_to_header_row(json)
+        self._init_col_setup()
+        self._result.append(self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _add_nodes_to_header_row(self, json):
+        for idx, name in enumerate(json['nodes']['names']):
+            if idx == 0:
+                continue
+            node_type = json['nodes']['types'][idx]
+            if self._columns == 'composite' and node_type == 1:
+                continue
+            # noinspection PyTypeChecker
+            self._header_row.append(
+                '{}% {} ({})'.format(json['nodes']['weights'][idx], name, json['nodes']['parents'][idx]))
+
+    def _run(self):
+        try:
+            self._init_params['includeNaCnt'] = True
+            self._init_params['includeFinalStmt'] = True
+            json = self._api_client.rank_ranks(self._init_params)
+            self._init_header_row_custom(json)
+            node_rank_idxs = []
+            if self._columns != 'ranks':
+                for node_idx, node_type in enumerate(json['nodes']['types']):
+                    if node_idx > 0 and (self._columns == 'factor' or node_type == 0):
+                        node_rank_idxs.append(node_idx)
+            for idx, mkt_uid in enumerate(json['mktUids']):
+                row = [mkt_uid, json['tickers'][idx]]
+                if self._include_names:
+                    row.append(json['names'][idx])
+                row += [json['naCnt'][idx], 'Y' if json['finalStmt'][idx] else 'N', json['ranks'][idx]]
+                if self._columns:
+                    for node_idx in node_rank_idxs:
+                        row.append(json['nodes']['ranks'][idx][node_idx])
+                self._result.append(row)
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+
+        except ClientException as e:
+            self._logger.error(e)
+            self._finished = True
+            return
+
+        return True
+
+
+class RankRanksPeriodOperation(Operation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        date = self._data['Default Settings']['Start Date']
+        end_date = self._data['Default Settings']['End Date']
+        today = datetime.date.today()
+        if end_date > today:
+            end_date = today
+        self._dates = []
+        while date < end_date:
+            self._dates.append(date)
+            date = date + datetime.timedelta(
+                days=data_cons.FREQ_BY_LABEL[data['Default Settings']['Frequency']]['days'])
+        self._iter_idx = 0
+        self._iter_cnt = len(self._dates)
+        self._include_names = self._data['Default Settings'].get('Include Names')
+        if self._include_names:
+            self._include_names = self._include_names['value']
+        self._ranks_by_mkt_uid = {}
+
+    def _init_header_row_custom(self):
+        self._header_row = [{'name': 'Mkt UID', 'justify': 'left', 'length': 10}]
+        max_len = 0
+        for row in self._result[:100]:
+            max_len = max(max_len, len(row[1]))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        if self._include_names:
+            max_len = 0
+            for row in self._result[:100]:
+                max_len = max(max_len, len(row[2]))
+            self._header_row.append({'name': 'Name', 'justify': 'left', 'length': max_len})
+        for date in self._dates:
+            self._header_row.append(str(date))
+        self._init_col_setup()
+        self._result.insert(0, self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _run(self):
+        while self._iter_idx < self._iter_cnt:
+            if self.is_paused():
+                return
+
+            try:
+                self._init_params['asOfDt'] = str(self._dates[self._iter_idx])
+                json = self._api_client.rank_ranks(self._init_params)
+                if self._iter_idx == 0:
+                    for idx, mkt_uid in enumerate(json['mktUids']):
+                        row = [mkt_uid, json['tickers'][idx]]
+                        if self._include_names:
+                            row.append(json['names'][idx])
+                        self._result.append(row)
+                        self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
+                        self._ranks_by_mkt_uid[mkt_uid][0] = json['ranks'][idx]
+                else:
+                    for idx, mkt_uid in enumerate(json['mktUids']):
+                        if mkt_uid not in self._ranks_by_mkt_uid:
+                            row = [mkt_uid, json['tickers'][idx]]
+                            if self._include_names:
+                                row.append(json['names'][idx])
+                            row.append(json['ranks'][idx])
+                            self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
+                        self._ranks_by_mkt_uid[mkt_uid][self._iter_idx] = json['ranks'][idx]
+                self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
+            except ClientException as e:
+                self._logger.error(e)
+                self._logger.warning(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed')
+                if not self._continue_on_error:
+                    break
+
+            self._iter_idx += 1
+
+        if self._iter_idx > 0:
+            for row in self._result:
+                row += self._ranks_by_mkt_uid[row[0]]
+            self._init_header_row_custom()
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+
+        return True
+
+
+class RankRanksMultiOperation(IterOperation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._include_names = self._data['Default Settings'].get('Include Names')
+        if self._include_names:
+            self._include_names = self._include_names['value']
+        self._ranks_by_mkt_uid = {}
+
+    def _init_header_row_custom(self):
+        self._header_row = [{'name': 'Mkt UID', 'justify': 'left', 'length': 10}]
+        max_len = 0
+        for row in self._result[:100]:
+            max_len = max(max_len, len(row[1]))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        if self._include_names:
+            max_len = 0
+            for row in self._result[:100]:
+                max_len = max(max_len, len(row[2]))
+            self._header_row.append({'name': 'Name', 'justify': 'left', 'length': max_len})
+        for iter_idx, iter_data in enumerate(self._data['Iterations']):
+            self._header_row.append(iter_data['Name'] if 'Name' in iter_data else f'Iteration {iter_idx + 1}')
+        self._init_col_setup()
+        self._result.insert(0, self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _run(self):
+        if super()._run() and self._iter_idx > 0:
+            for row in self._result:
+                row += self._ranks_by_mkt_uid[row[0]]
+            self._init_header_row_custom()
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+            return True
+
+    def _run_iter(self, *, iter_data, iter_params):
+        try:
+            params = util.update_iter_params(self._init_params, iter_params)
+            json = self._api_client.rank_ranks(params)
+            if self._iter_idx == 0:
+                for idx, mkt_uid in enumerate(json['mktUids']):
+                    row = [mkt_uid, json['tickers'][idx]]
+                    if self._include_names:
+                        row.append(json['names'][idx])
+                    self._result.append(row)
+                    self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
+                    self._ranks_by_mkt_uid[mkt_uid][0] = json['ranks'][idx]
+            else:
+                for idx, mkt_uid in enumerate(json['mktUids']):
+                    if mkt_uid not in self._ranks_by_mkt_uid:
+                        row = [mkt_uid, json['tickers'][idx]]
+                        if self._include_names:
+                            row.append(json['names'][idx])
+                        row.append(json['ranks'][idx])
+                        self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
+                    self._ranks_by_mkt_uid[mkt_uid][self._iter_idx] = json['ranks'][idx]
+            self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
+        except ClientException as e:
+            self._logger.error(e)
+            self._logger.warning(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed')
+            raise IterationFailedException
+
+
+class OperationPausedException(Exception):
+    pass
+
+
+class IterationFailedException(Exception):
+    pass
+
+
+def validate_property(*, section, iteration_idx=None, prop, value, meta_info: dict, logger: logging.Logger):
+    """
+    Checks if a certain property has a validation function defined in its meta info and attempts to
+    validate against it
+    :param section:
+    :param iteration_idx:
+    :param prop: the name of the property
+    :param value: the value of the property
+    :param meta_info: the meta info of the property
+    :param logger:
+    :return: bool
+    """
+    if 'isValid' in meta_info:
+        ret = meta_info['isValid'](value)
+        if misc.is_str(ret) or not ret:
+            error = ': ' + ret if misc.is_str(ret) else ''
+            if iteration_idx is None:
+                logger.error(f'Invalid value for "{prop}" property in "{section}" section' + error)
+            else:
+                logger.error(f'Invalid value for "{prop}" property in iteration #{iteration_idx + 1}' + error)
+            return False
+    return True
+
+
+def process_input_section(*, section, operation=None, data: dict, iteration_idx=None, logger: logging.Logger):
+    """
+    Parses, validates and annotates (meta info) a section's parameters
+    :param operation:
+    :param section:
+    :param iteration_idx: Iteration idx
+    :param data: section's data
+    :param logger:
+    :return: bool
+    """
+    if section == 'Main':
+        mapping = mapping_init.MAIN
+    elif section == 'Default Settings':
+        mapping = operation['mapping']['settings']
+    else:
+        mapping = operation['mapping']['iterations']
+
+    for prop, value in data.items():
+        if prop in mapping:
+            meta_info = mapping[prop]
+            if not validate_property(
+                    section=section, iteration_idx=iteration_idx, prop=prop, value=value, meta_info=meta_info,
+                    logger=logger):
+                return False
+
+            if 'field' in meta_info:
+                data[prop] = {'value': value, 'meta_info': meta_info}
+        else:
+            if section != 'Iterations':
+                logger.error(f'Unrecognized property "{prop}" in "{section}" section')
+            else:
+                logger.error(f'Unrecognized property "{prop}" in iteration #{iteration_idx + 1}')
+            return False
+    return True
+
+
+def process_input(*, data: dict, logger: logging.Logger):
+    """
+    Parse data input, stops and returns false on any validation error encountered.
+    :param data: the data dictionary
+    :param logger:
+    :return: bool
+    """
+    if not misc.is_dict(data):
+        logger.error('Input is not valid')
+        return False
+
+    if 'Main' not in data:
+        logger.error('"Main" section not found')
+        return False
+    if 'Default Settings' not in data:
+        logger.error('"Default Settings" section not found')
+        return False
+
+    main_data = data['Main']
+    if not misc.is_dict(main_data):
+        logger.error('"Main" section is not valid')
+        return False
+    if not process_input_section(section='Main', data=main_data, logger=logger):
+        return False
+    if not util.validate_main(settings=main_data, logger=logger):
+        return False
+
+    operation = OPERATIONS.get(data['Main']['Operation'].lower())
+    if operation is None:
+        logger.error(f'Invalid value for "Operation" property in "Main" section')
+        return False
+    operation_has_iterations = operation.get('has_iterations')
+
+    if operation_has_iterations and 'Iterations' not in data:
+        logger.error('"Iterations" section not found')
+        return False
+    if operation_has_iterations:
+        if len(data) > 3:
+            logger.error('Only "Main", "Default Settings" and "Iterations" sections expected')
+            return False
+    else:
+        if len(data) > 2:
+            logger.error('Only "Main" and "Default Settings" sections expected')
+            return False
+
+    settings_data = data['Default Settings']
+    if not misc.is_dict(settings_data):
+        logger.error('"Default Settings" section is not valid')
+        return False
+    if not process_input_section(section='Default Settings', operation=operation, data=settings_data, logger=logger):
+        return False
+    if not util.validate_op_settings(operation=operation, settings=data['Default Settings'], logger=logger):
+        return False
+    if 'validate_settings' in operation and not operation['validate_settings'](data['Default Settings'], logger):
+        return False
+
+    if 'Type' not in data['Default Settings']:
+        data['Default Settings']['Type'] = 'Stock'
+
+    if not operation_has_iterations:
+        return True
+
+    iterations = data['Iterations']
+    if not misc.is_list(iterations):
+        logger.error('"Iterations" section is not valid')
+        return False
+    for iteration_idx, iteration_data in enumerate(iterations):
+        if not misc.is_dict(iteration_data):
+            logger.error(f'Iteration #{iteration_idx + 1} is not valid')
+            return False
+        if not process_input_section(
+                section='Iterations', operation=operation, iteration_idx=iteration_idx, data=iteration_data,
+                logger=logger
+        ):
+            return False
+        if not util.validate_op_iteration(
+                operation=operation, iteration_idx=iteration_idx, iteration_data=iteration_data, logger=logger):
+            return False
+
+    return True
+
+
+OPERATIONS = {
+    'rollingscreen': {
+        'has_iterations': True,
+        'class': ScreenRollingBacktestOperation,
+        'mapping': {
+            'settings': mapping_screen.ROLLING_SCREEN_SETTINGS,
+            'iterations': mapping_screen.ROLLING_SCREEN_ITERATIONS
+        }
+    },
+    'rankperformance': {
+        'has_iterations': True,
+        'class': RankPerfOperation,
+        'mapping': {'settings': mapping_screen.RANK_PERF_SETTINGS, 'iterations': mapping_screen.RANK_PERF_ITERATIONS}
+    },
+    'data': {
+        'has_iterations': True,
+        'class': DataOperation,
+        'mapping': {'settings': mapping_data.SETTINGS, 'iterations': mapping_data.ITERATIONS},
+        'validate_settings': util.validate_data_settings
+    },
+    'ranks': {
+        'class': RankRanksOperation,
+        'mapping': {'settings': mapping_rank.RANKS}
+    },
+    'ranksperiod': {
+        'class': RankRanksPeriodOperation,
+        'mapping': {'settings': mapping_rank.RANKS_PERIOD}
+    },
+    'ranksmulti': {
+        'has_iterations': True,
+        'class': RankRanksMultiOperation,
+        'mapping': {'settings': mapping_rank.RANKS_MULTI_SETTINGS, 'iterations': mapping_rank.RANKS_MULTI_ITERATIONS}
+    }
+}
