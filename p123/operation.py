@@ -97,12 +97,14 @@ class Operation:
         self._output.configure(state='disabled')
 
     def run(self):
-        if self._run():
+        run_outcome = self._run()
+        if run_outcome is not None:
             self._finished = True
-            self._logger.info(f"Done ({self._data['Main']['Operation']})")
+            if run_outcome:
+                self._logger.info(f"Done ({self._data['Main']['Operation']})")
 
     def _run(self):
-        return False
+        return
 
     def get_result(self):
         return self._result
@@ -167,7 +169,7 @@ class IterOperation(Operation):
                 return
             except IterationFailedException:
                 if not self._continue_on_error:
-                    return True
+                    return False
 
             self._iter_idx += 1
 
@@ -231,7 +233,8 @@ class DataOperation(IterOperation):
         self._write_row_to_output(self._header_row, False)
 
     def _run(self):
-        if super()._run() and self._iter_idx > 0:
+        run_outcome = super()._run()
+        if run_outcome is not None and self._iter_idx > 0:
             w_cusips = self._init_params.get('cusips')
             for idx, date in enumerate(self._raw_result['dates']):
                 for mkt_uid, item in self._raw_result['items'].items():
@@ -248,7 +251,7 @@ class DataOperation(IterOperation):
                 self._output.configure(state='normal')
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
-            return True
+        return run_outcome
 
     def _run_iter(self, *, iter_data, iter_params):
         self._init_params['formulas'].append(iter_data['Formula'])
@@ -431,8 +434,7 @@ class RankRanksOperation(Operation):
 
         except ClientException as e:
             self._logger.error(e)
-            self._finished = True
-            return
+            return False
 
         return True
 
@@ -519,7 +521,7 @@ class RankRanksPeriodOperation(Operation):
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
 
-        return True
+        return self._iter_idx == self._iter_cnt
 
 
 class RankRanksMultiOperation(IterOperation):
@@ -548,7 +550,8 @@ class RankRanksMultiOperation(IterOperation):
         self._write_row_to_output(self._header_row, False)
 
     def _run(self):
-        if super()._run() and self._iter_idx > 0:
+        run_outcome = super()._run()
+        if run_outcome is not None and self._iter_idx > 0:
             for row in self._result:
                 row += self._ranks_by_mkt_uid[row[0]]
             self._init_header_row_custom()
@@ -558,7 +561,7 @@ class RankRanksMultiOperation(IterOperation):
                 self._output.configure(state='normal')
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
-            return True
+        return run_outcome
 
     def _run_iter(self, *, iter_data, iter_params):
         try:

@@ -50,6 +50,7 @@ RANKS = {
         'isValid': functools.partial(validation.from_mapping, mapping=['ranks', 'composite', 'factor'])
     }
 }
+RANKS.update(mapping_init.REQ_CONTEXT)
 
 RANKS_PERIOD = RANKS.copy()
 del RANKS_PERIOD['As of Date'], RANKS_PERIOD['Columns']
