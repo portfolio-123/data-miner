@@ -39,3 +39,4 @@ ITERATIONS = {
         'isValid': misc.is_str
     }
 }
+ITERATIONS.update(REQ_CONTEXT)

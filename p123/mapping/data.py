@@ -39,7 +39,7 @@ SETTINGS = {
         'transform': transform.data_items
     }
 }
-SETTINGS.update(init.REQ_CONTEXT)
+SETTINGS.update(init.SETTINGS)
 
 ITERATIONS = {
     'Formula': {

@@ -104,7 +104,13 @@ class Operation:
                 self._logger.info(f"Done ({self._data['Main']['Operation']})")
 
     def _run(self):
-        return
+        """
+        Actual operation run logic, this method should be overridden by implementing classes.
+        :return:
+            None - paused
+            False - error encountered and On Error is set to Stop
+            True - otherwise
+        """
 
     def get_result(self):
         return self._result
@@ -211,7 +217,6 @@ class ScreenRollingBacktestOperation(IterOperation):
 class DataOperation(IterOperation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
-        self._init_params['formulas'] = []
         self._raw_result = {'items': {}}
 
     def _init_header_row_custom(self):
@@ -226,8 +231,8 @@ class DataOperation(IterOperation):
         if self._data['Default Settings'].get('Cusips'):
             self._header_row.append({'name': 'Cusip', 'justify': 'left', 'length': 9})
         for idx, data in enumerate(self._data['Iterations']):
-            name = misc.coalesce(data.get('Name'), data['Formula'])
-            self._header_row.append(name if len(name) <= 50 else name[:50])
+            name = misc.coalesce(data.get('Name'), data['Formula'])[:50]
+            self._header_row.append({'name': name, 'length': max(len(name), 12)})
         self._init_col_setup()
         self._result.insert(0, self._header_row)
         self._write_row_to_output(self._header_row, False)
@@ -254,21 +259,21 @@ class DataOperation(IterOperation):
         return run_outcome
 
     def _run_iter(self, *, iter_data, iter_params):
-        self._init_params['formulas'].append(iter_data['Formula'])
-        if len(self._init_params['formulas']) == 50 or self._iter_idx + 1 == self._iter_cnt:
-            try:
-                json = self._api_client.data(self._init_params)
-                if 'dates' not in self._raw_result:
-                    self._raw_result['dates'] = json['dates']
-                for mkt_uid, item in json['items'].items():
-                    if mkt_uid not in self._raw_result['items']:
-                        self._raw_result['items'][mkt_uid] = item
-                    else:
-                        self._raw_result['items'][mkt_uid]['series'] += item['series']
-                self._init_params['formulas'] = []
-            except ClientException as e:
-                self._logger.error(e)
-                raise IterationFailedException
+        self._init_params['formulas'] = [iter_data['Formula']]
+        try:
+            json = self._api_client.data(self._init_params)
+            if 'dates' not in self._raw_result:
+                self._raw_result['dates'] = json['dates']
+            for mkt_uid, item in json['items'].items():
+                if mkt_uid not in self._raw_result['items']:
+                    self._raw_result['items'][mkt_uid] = item
+                else:
+                    self._raw_result['items'][mkt_uid]['series'] += item['series']
+            self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
+        except ClientException as e:
+            self._logger.error(e)
+            self._logger.warning(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed")
+            raise IterationFailedException
 
 
 class RankPerfOperation(IterOperation):
