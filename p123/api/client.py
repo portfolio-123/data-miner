@@ -107,6 +107,18 @@ class Client(object):
             params=params
         ).json()
 
+    def screen_run(self, params: dict):
+        """
+        Screen run
+        :param params:
+        :return:
+        """
+        return self._req_with_auth_fallback(
+            name='screen backtest',
+            url=cons.API_ENDPOINT + cons.API_SCREEN_RUN_PATH,
+            params=params
+        ).json()
+
     def universe_update(self, params: dict):
         """
         API universe update
@@ -163,7 +175,7 @@ def main():
     config = configparser.ConfigParser()
     config.read('../../config.ini')
     client = Client(api_id=config.get('API', 'id'), api_key=config.get('API', 'key'))
-    client.auth()
+    # client.auth()
     client.universe_update({'type': 'stock', 'rules': ['ticker("aapl")']})
     # client.update_universe()
     # data = client.screen_rolling_backtest({'screen': {'type': 'stock'}})

@@ -61,6 +61,28 @@ SCREEN = {
     }
 }
 
+SCREEN_RUN = {
+    'Screen': {
+        'field': 'screen',
+        'isValid': misc.is_int
+    },
+    'As of Date': {
+        'field': 'asOfDt',
+        'isValid': misc.is_date,
+        'transform': transform.date,
+        'required': True
+    },
+    'End Date': {
+        'field': 'endDt',
+        'isValid': misc.is_date,
+        'transform': transform.date
+    }
+}
+SCREEN_RUN.update(SCREEN)
+
+SCREEN_RUN_SETTINGS = init.SETTINGS.copy()
+SCREEN_RUN_SETTINGS.update(SCREEN_RUN)
+
 SCREEN_BACKTEST_SHARED = {
     'Screen': {
         'field': 'screen',

@@ -218,6 +218,52 @@ class ScreenRollingBacktestOperation(IterOperation):
             raise IterationFailedException
 
 
+class ScreenRunOperation(Operation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+
+    def _init_header_row_custom(self):
+        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
+        max_len = 0
+        for ticker in self._result[:100]:
+            max_len = max(max_len, len(ticker))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        max_len = 0
+        for name in self._result[:100]:
+            max_len = max(max_len, len(name))
+        self._header_row += [
+            {'name': 'Name', 'justify': 'left', 'length': max_len},
+            'Last'
+        ]
+        if len(self._result[0]) == 5:
+            self._header_row.append('Rank')
+        self._init_col_setup()
+        self._result.insert(0, self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _run(self):
+        try:
+            if 'screen' not in self._init_params:
+                self._init_params['screen'] = {}
+            self._init_params['screen']['type'] = self._data['Default Settings']['Type']
+            json = self._api_client.screen_run(self._init_params)
+            print(json)
+            self._result += json.rows
+            self._init_header_row_custom()
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+
+        except ClientException as e:
+            self._logger.error(e)
+            return False
+
+        return True
+
+
 class DataOperation(IterOperation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
@@ -782,5 +828,9 @@ OPERATIONS = {
         'has_iterations': True,
         'class': RankRanksMultiOperation,
         'mapping': {'settings': mapping_rank.RANKS_MULTI_SETTINGS, 'iterations': mapping_rank.RANKS_MULTI_ITERATIONS}
+    },
+    'screenrun': {
+        'class': ScreenRunOperation,
+        'mapping': {'settings': mapping_screen.SCREEN_RUN_SETTINGS}
     }
 }
