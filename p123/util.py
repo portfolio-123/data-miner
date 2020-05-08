@@ -192,20 +192,20 @@ def validate_data_settings(settings, logger: logging.Logger):
         return False
 
     items_def_cnt = 0
-    items_def_cnt += 1 if 'Mkt UIDs' in settings else 0
+    items_def_cnt += 1 if 'P123 UIDs' in settings else 0
     items_def_cnt += 1 if 'Tickers' in settings else 0
     items_def_cnt += 1 if 'Cusips' in settings else 0
     if not items_def_cnt:
         logger.error('"Default Settings" section needs to contain one of the following properties: '
-                     '"Mkt UIDs", "Tickers" or "Cusips"')
+                     '"P123 UIDs", "Tickers" or "Cusips"')
         return False
     if items_def_cnt > 1:
         logger.error('"Default Settings" section can only contain one of the following properties: '
-                     '"Mkt UIDs", "Tickers" or "Cusips"')
+                     '"P123 UIDs", "Tickers" or "Cusips"')
         return False
 
-    if 'Mkt UIDs' in settings:
-        items = settings['Mkt UIDs']
+    if 'P123 UIDs' in settings:
+        items = settings['P123 UIDs']
     elif 'Tickers' in settings:
         items = settings['Tickers']
     else:
@@ -216,6 +216,6 @@ def validate_data_settings(settings, logger: logging.Logger):
         items = items.split(' ')
     items_cnt = len(items)
     if items_cnt > 50:
-        logger.error('"Default Settings" can only contain at most 50 "Mkt UIDs", "Tickers" or "Cusips"')
+        logger.error('"Default Settings" can only contain at most 50 "P123 UIDs", "Tickers" or "Cusips"')
         return False
     return True

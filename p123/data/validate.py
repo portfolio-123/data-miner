@@ -231,7 +231,7 @@ def rank_perf_buckets(val):
     return misc.is_int(val) and 1 <= val <= 20
 
 
-def data_mkt_uids(val):
+def data_p123_uids(val):
     if misc.is_int(val):
         val = [val]
     elif misc.is_str(val):

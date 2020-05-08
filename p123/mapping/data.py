@@ -23,9 +23,9 @@ SETTINGS = {
         'isValid': functools.partial(validation.from_mapping, mapping=FREQ),
         'transform': functools.partial(transform.from_mapping, mapping=FREQ)
     },
-    'Mkt UIDs': {
-        'field': 'mktUids',
-        'isValid': validation.data_mkt_uids,
+    'P123 UIDs': {
+        'field': 'p123Uids',
+        'isValid': validation.data_p123_uids,
         'transform': transform.data_items
     },
     'Tickers': {

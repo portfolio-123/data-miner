@@ -222,7 +222,7 @@ class DataOperation(IterOperation):
     def _init_header_row_custom(self):
         self._header_row = [
             {'name': 'Date', 'justify': 'left', 'length': 10},
-            {'name': 'Mkt UID', 'justify': 'left', 'length': 10}
+            {'name': 'P123 UID', 'justify': 'left', 'length': 10}
         ]
         max_len = 0
         for ticker in self._result[:100]:
@@ -242,8 +242,8 @@ class DataOperation(IterOperation):
         if run_outcome is not None and self._iter_idx > 0:
             w_cusips = self._init_params.get('cusips')
             for idx, date in enumerate(self._raw_result['dates']):
-                for mkt_uid, item in self._raw_result['items'].items():
-                    row = [date, mkt_uid, item['ticker']]
+                for p123_uid, item in self._raw_result['items'].items():
+                    row = [date, p123_uid, item['ticker']]
                     if w_cusips:
                         row.append(item['cusip'])
                     for series_data in item['series']:
@@ -264,11 +264,11 @@ class DataOperation(IterOperation):
             json = self._api_client.data(self._init_params)
             if 'dates' not in self._raw_result:
                 self._raw_result['dates'] = json['dates']
-            for mkt_uid, item in json['items'].items():
-                if mkt_uid not in self._raw_result['items']:
-                    self._raw_result['items'][mkt_uid] = item
+            for p123_uid, item in json['items'].items():
+                if p123_uid not in self._raw_result['items']:
+                    self._raw_result['items'][p123_uid] = item
                 else:
-                    self._raw_result['items'][mkt_uid]['series'] += item['series']
+                    self._raw_result['items'][p123_uid]['series'] += item['series']
             self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
         except ClientException as e:
             self._logger.error(e)
@@ -378,7 +378,7 @@ class RankRanksOperation(Operation):
             self._include_names = self._include_names['value']
 
     def _init_header_row_custom(self, json):
-        self._header_row = [{'name': 'Mkt UID', 'justify': 'left', 'length': 10}]
+        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
         max_len = 0
         for ticker in json['tickers'][:100]:
             max_len = max(max_len, len(ticker))
@@ -421,8 +421,8 @@ class RankRanksOperation(Operation):
                 for node_idx, node_type in enumerate(json['nodes']['types']):
                     if node_idx > 0 and (self._columns == 'factor' or node_type == 0):
                         node_rank_idxs.append(node_idx)
-            for idx, mkt_uid in enumerate(json['mktUids']):
-                row = [mkt_uid, json['tickers'][idx]]
+            for idx, p123_uid in enumerate(json['p123Uids']):
+                row = [p123_uid, json['tickers'][idx]]
                 if self._include_names:
                     row.append(json['names'][idx])
                 row += [json['naCnt'][idx], 'Y' if json['finalStmt'][idx] else 'N', json['ranks'][idx]]
@@ -462,10 +462,10 @@ class RankRanksPeriodOperation(Operation):
         self._include_names = self._data['Default Settings'].get('Include Names')
         if self._include_names:
             self._include_names = self._include_names['value']
-        self._ranks_by_mkt_uid = {}
+        self._ranks_by_p123_uid = {}
 
     def _init_header_row_custom(self):
-        self._header_row = [{'name': 'Mkt UID', 'justify': 'left', 'length': 10}]
+        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
         max_len = 0
         for row in self._result[:100]:
             max_len = max(max_len, len(row[1]))
@@ -490,22 +490,22 @@ class RankRanksPeriodOperation(Operation):
                 self._init_params['asOfDt'] = str(self._dates[self._iter_idx])
                 json = self._api_client.rank_ranks(self._init_params)
                 if self._iter_idx == 0:
-                    for idx, mkt_uid in enumerate(json['mktUids']):
-                        row = [mkt_uid, json['tickers'][idx]]
+                    for idx, p123_uid in enumerate(json['p123Uids']):
+                        row = [p123_uid, json['tickers'][idx]]
                         if self._include_names:
                             row.append(json['names'][idx])
                         self._result.append(row)
-                        self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
-                        self._ranks_by_mkt_uid[mkt_uid][0] = json['ranks'][idx]
+                        self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
+                        self._ranks_by_p123_uid[p123_uid][0] = json['ranks'][idx]
                 else:
-                    for idx, mkt_uid in enumerate(json['mktUids']):
-                        if mkt_uid not in self._ranks_by_mkt_uid:
-                            row = [mkt_uid, json['tickers'][idx]]
+                    for idx, p123_uid in enumerate(json['p123Uids']):
+                        if p123_uid not in self._ranks_by_p123_uid:
+                            row = [p123_uid, json['tickers'][idx]]
                             if self._include_names:
                                 row.append(json['names'][idx])
                             row.append(json['ranks'][idx])
-                            self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
-                        self._ranks_by_mkt_uid[mkt_uid][self._iter_idx] = json['ranks'][idx]
+                            self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
+                        self._ranks_by_p123_uid[p123_uid][self._iter_idx] = json['ranks'][idx]
                 self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
             except ClientException as e:
                 self._logger.error(e)
@@ -517,7 +517,7 @@ class RankRanksPeriodOperation(Operation):
 
         if self._iter_idx > 0:
             for row in self._result:
-                row += self._ranks_by_mkt_uid[row[0]]
+                row += self._ranks_by_p123_uid[row[0]]
             self._init_header_row_custom()
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
@@ -535,10 +535,10 @@ class RankRanksMultiOperation(IterOperation):
         self._include_names = self._data['Default Settings'].get('Include Names')
         if self._include_names:
             self._include_names = self._include_names['value']
-        self._ranks_by_mkt_uid = {}
+        self._ranks_by_p123_uid = {}
 
     def _init_header_row_custom(self):
-        self._header_row = [{'name': 'Mkt UID', 'justify': 'left', 'length': 10}]
+        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
         max_len = 0
         for row in self._result[:100]:
             max_len = max(max_len, len(row[1]))
@@ -558,7 +558,7 @@ class RankRanksMultiOperation(IterOperation):
         run_outcome = super()._run()
         if run_outcome is not None and self._iter_idx > 0:
             for row in self._result:
-                row += self._ranks_by_mkt_uid[row[0]]
+                row += self._ranks_by_p123_uid[row[0]]
             self._init_header_row_custom()
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
@@ -573,22 +573,22 @@ class RankRanksMultiOperation(IterOperation):
             params = util.update_iter_params(self._init_params, iter_params)
             json = self._api_client.rank_ranks(params)
             if self._iter_idx == 0:
-                for idx, mkt_uid in enumerate(json['mktUids']):
-                    row = [mkt_uid, json['tickers'][idx]]
+                for idx, p123_uid in enumerate(json['p123Uids']):
+                    row = [p123_uid, json['tickers'][idx]]
                     if self._include_names:
                         row.append(json['names'][idx])
                     self._result.append(row)
-                    self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
-                    self._ranks_by_mkt_uid[mkt_uid][0] = json['ranks'][idx]
+                    self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
+                    self._ranks_by_p123_uid[p123_uid][0] = json['ranks'][idx]
             else:
-                for idx, mkt_uid in enumerate(json['mktUids']):
-                    if mkt_uid not in self._ranks_by_mkt_uid:
-                        row = [mkt_uid, json['tickers'][idx]]
+                for idx, p123_uid in enumerate(json['p123Uids']):
+                    if p123_uid not in self._ranks_by_p123_uid:
+                        row = [p123_uid, json['tickers'][idx]]
                         if self._include_names:
                             row.append(json['names'][idx])
                         row.append(json['ranks'][idx])
-                        self._ranks_by_mkt_uid[mkt_uid] = [None] * self._iter_cnt
-                    self._ranks_by_mkt_uid[mkt_uid][self._iter_idx] = json['ranks'][idx]
+                        self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
+                    self._ranks_by_p123_uid[p123_uid][self._iter_idx] = json['ranks'][idx]
             self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
         except ClientException as e:
             self._logger.error(e)
