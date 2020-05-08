@@ -1,6 +1,7 @@
 import requests
 import p123.api.cons as cons
 import configparser
+import time
 
 
 class ClientException(Exception):
@@ -17,6 +18,22 @@ class Client(object):
         self._api_key = api_key
         self._session = requests.Session()
 
+    @staticmethod
+    def _req_with_retry(req, **kwargs):
+        tries = 0
+        resp = None
+        while tries < 5:
+            if tries > 0:
+                time.sleep(2 * tries)
+            try:
+                resp = req(**kwargs)
+                if resp.status_code != 503:
+                    break
+            except Exception:
+                raise ClientException('Cannot connect to API')
+            tries += 1
+        return resp
+
     def auth(self):
         """
         Authenticates and sets the Bearer authorization header on success. This method doesn't need to be called
@@ -24,21 +41,19 @@ class Client(object):
         if session expires.
         :return: bool
         """
-        try:
-            resp = self._session.post(
-                url=cons.API_ENDPOINT + cons.API_AUTH_PATH, auth=(self._api_id, self._api_key),
-                verify=cons.API_VERIFY_REQUESTS
-            )
-            if resp.status_code == 200:
-                self._session.headers.update({'Authorization': f'Bearer {resp.text}'})
-            elif resp.status_code == 406:
-                raise ClientException('API authentication failed: user account inactive')
-            elif resp.status_code == 402:
-                raise ClientException('API authentication failed: paying subscription required')
-            else:
-                raise ClientException('API authentication failed')
-        except Exception as e:
-            raise ClientException(e)
+        resp = Client._req_with_retry(
+            self._session.post,
+            url=cons.API_ENDPOINT + cons.API_AUTH_PATH, auth=(self._api_id, self._api_key),
+            verify=cons.API_VERIFY_REQUESTS
+        )
+        if resp.status_code == 200:
+            self._session.headers.update({'Authorization': f'Bearer {resp.text}'})
+        elif resp.status_code == 406:
+            raise ClientException('API authentication failed: user account inactive')
+        elif resp.status_code == 402:
+            raise ClientException('API authentication failed: paying subscription required')
+        else:
+            raise ClientException('API authentication failed: ' + resp.text)
 
     def _req_with_auth_fallback(self, *, name: str, url: str, params, stop: bool = False):
         """
@@ -51,10 +66,9 @@ class Client(object):
         """
         resp = None
         if self._session.headers.get('Authorization') is not None:
-            try:
-                resp = self._session.post(url=url, json=params, verify=cons.API_VERIFY_REQUESTS, timeout=180)
-            except Exception as e:
-                raise ClientException(e)
+            resp = Client._req_with_retry(
+                self._session.post, url=url, json=params, verify=cons.API_VERIFY_REQUESTS, timeout=300
+            )
         if resp is None or resp.status_code == 403:
             if not stop:
                 self.auth()

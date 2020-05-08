@@ -97,7 +97,11 @@ class Operation:
         self._output.configure(state='disabled')
 
     def run(self):
-        run_outcome = self._run()
+        try:
+            run_outcome = self._run()
+        except Exception as e:
+            self._logger.error(e)
+            run_outcome = False
         if run_outcome is not None:
             self._finished = True
             if run_outcome:
