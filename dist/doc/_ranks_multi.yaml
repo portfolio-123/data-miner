@@ -3,6 +3,7 @@ Main:
     On Error:  Stop # ( [Stop] | Continue )
 
 Default Settings:
+    Engine: Current # ( [Current] | Legacy )
     Vendor: Factset # ( [Compustat] | Factset )
     PIT Method: Prelim # ( [Complete] | Prelim )
 
