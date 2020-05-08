@@ -1,0 +1,8 @@
+# Universe
+Universe: My universe name
+--or--
+Universe:
+    Rules:
+        - rule1
+        - rule2
+    Starting Universe: Nasdaq 100

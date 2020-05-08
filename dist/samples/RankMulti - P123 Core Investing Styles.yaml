@@ -1,0 +1,24 @@
+Main:
+    Operation: RanksMulti
+    On Error:  Stop # ( [Stop] | Continue )
+
+Default Settings:
+    Vendor: Compustat # ( [Compustat] | Factset )
+    PIT Method: Prelim # ( [Complete] | Prelim )
+    #Rank Mon: rank102
+
+    As of Date: 2020-01-01
+    Universe: All Fundamentals - USA
+    Include Names: false #  true | [false] 
+
+    #Ranking Method: #( [NAsNegative] | NAsNeutral )
+    #Industry: 
+    #Transaction Type:  # [long] | short 
+    #Tickers: IBM MSFT INTC
+
+Iterations:
+    -
+        Ranking System: "Core: Momentum"
+        
+    -
+        Ranking System: "Core: Value"

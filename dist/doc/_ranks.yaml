@@ -1,0 +1,17 @@
+Main:
+    Operation: Ranks
+    On Error:  Stop # ( [Stop] | Continue )
+
+Default Settings:
+    Vendor: Factset # ( [Compustat] | Factset )
+    PIT Method: Prelim # ( [Complete] | Prelim )
+
+    Ranking System: see settings_ranking_system.yaml
+    Ranking Method: NAsNegative #( [NAsNegative] | NAsNeutral )
+    As of Date: 2015-01-01
+    Universe: see settings_universe.yaml
+    Industry: BEVERAGES - USA
+    Transaction Type: long # ( [long] | short )
+    Tickers: IBM MSFT INTC
+    Columns: ranks # ( [ranks] | composite | factor )
+    Include Names: true # ( true | [false] )

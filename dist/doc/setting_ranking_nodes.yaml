@@ -1,0 +1,9 @@
+# Inline Ranking System Nodes using yaml syntax
+
+# Basic structure of a list of nodes
+Nodes:
+    -
+        see setting_ranking_node.yaml
+    -
+        see setting_ranking_node.yaml
+    ...
