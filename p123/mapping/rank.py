@@ -16,7 +16,6 @@ RANKS = {
     'Universe': {
         'field': 'universe',
         'isValid': validation.universe,
-        'type': 'screen',
         'transform': transform.universe
     },
     'As of Date': {
