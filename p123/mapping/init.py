@@ -13,6 +13,10 @@ MAIN = {
 }
 
 REQ_CONTEXT = {
+    'Engine': {
+        'field': 'engine',
+        'isValid': functools.partial(validation.from_mapping, mapping=('current', 'legacy'))
+    },
     'Vendor': {
         'field': 'vendor',
         'isValid': functools.partial(validation.from_mapping, mapping=('factset', 'compustat'))
