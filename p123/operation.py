@@ -457,10 +457,10 @@ class RankRanksPeriodOperation(Operation):
         if end_date > today:
             end_date = today
         self._dates = []
+        days = data_cons.FREQ_BY_LABEL[data['Default Settings']['Frequency'].lower()]['days']
         while date < end_date:
             self._dates.append(date)
-            date = date + datetime.timedelta(
-                days=data_cons.FREQ_BY_LABEL[data['Default Settings']['Frequency']]['days'])
+            date = date + datetime.timedelta(days=days)
         self._iter_idx = 0
         self._iter_cnt = len(self._dates)
         self._include_names = self._data['Default Settings'].get('Include Names')
@@ -493,6 +493,7 @@ class RankRanksPeriodOperation(Operation):
             try:
                 self._init_params['asOfDt'] = str(self._dates[self._iter_idx])
                 json = self._api_client.rank_ranks(self._init_params)
+                self._dates[self._iter_idx] = json['dt']
                 if self._iter_idx == 0:
                     for idx, p123_uid in enumerate(json['p123Uids']):
                         row = [p123_uid, json['tickers'][idx]]

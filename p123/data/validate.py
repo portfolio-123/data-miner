@@ -158,7 +158,6 @@ def screen_ranking_nodes(nodes: list, breadcrumbs='Nodes'):
             elif key == 'Name':
                 if not misc.is_number(value) and (not misc.is_str(value) or not value):
                     return screen_ranking_node_error(breadcrumbs, idx, node_type, error='"Name" property is invalid')
-                rank = value
             elif key == 'Nodes' and node_type == 'Composite':
                 if not misc.is_list(value):
                     return screen_ranking_node_error(breadcrumbs, idx, node_type, error='"Nodes" property is invalid')
@@ -202,7 +201,7 @@ def screen_ranking_nodes(nodes: list, breadcrumbs='Nodes'):
             if formula is None:
                 return screen_ranking_node_error(breadcrumbs, idx, node_type, '"Formula" property is missing')
             if scope and scope not in ('Universe', 'Industry', 'Sector'):
-                return screen_ranking_node_error(breadcrumbs, idx, node_type, '"Scope" property is missing')
+                return screen_ranking_node_error(breadcrumbs, idx, node_type, '"Scope" property is invalid')
         elif node_type == 'Conditional':
             if rank and rank not in ('Higher', 'Lower'):
                 return screen_ranking_node_error(breadcrumbs, idx, node_type, '"Rank" property is invalid')

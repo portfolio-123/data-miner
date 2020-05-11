@@ -87,37 +87,41 @@ def screen_ranking_nodes_to_xml(nodes, level=1, main_rank=None):
         weight = node.get('Weight')
         if not weight:
             weight = equal_weight if idx < nodes_cnt - 1 or nodes_cnt == 1 else 100 - equal_weight * (nodes_cnt - 1)
-        name = misc.coalesce(node.get('Name'), node_type)
         rank = misc.coalesce(node.get('Rank'), 'Higher')
 
         if node_type == 'Composite':
+            name = misc.coalesce(node.get('Name'), node_type)
             xml += '\n{}<Composite Name="{}" Weight="{}%" RankType="{}">'\
                 .format('\t' * level, name, weight, rank)
             xml += screen_ranking_nodes_to_xml(node['Nodes'], level + 1)
             xml += '\n{}</Composite>'.format('\t' * level)
-        elif node_type == 'Conditional':
-            xml += '\n{}<Conditional Name="{}" Weight="{}%" RankType="{}">' \
-                .format('\t' * level, name, weight, rank)
-            xml += '\n{}<Formula>{}</Formula>'.format('\t' * (level + 1), node['Formula'])
-            xml += '\n{}<Boolean Name="True">'.format('\t' * (level + 1))
-            xml += screen_ranking_nodes_to_xml(node['True Nodes'], level + 2)
-            xml += '\n{}</Boolean>'.format('\t' * (level + 1))
-            xml += '\n{}<Boolean Name="False">'.format('\t' * (level + 1))
-            xml += screen_ranking_nodes_to_xml(node['False Nodes'], level + 2)
-            xml += '\n{}</Boolean>'.format('\t' * (level + 1))
-            xml += '\n{}</Conditional>'.format('\t' * level)
-        elif node_type == 'StockFormula':
-            xml += '\n{}<StockFormula Name="{}" Weight="{}%" RankType="{}" Scope="{}">' \
-                .format('\t' * level, 'StockFormula', weight, rank, misc.coalesce(node.get('Scope'), 'Universe'))
-            xml += '\n{}<Formula>{}</Formula>'.format('\t' * (level + 1), node['Formula'])
-            xml += '\n{}</StockFormula>'.format('\t' * level)
         else:
-            xml += '\n{}<{} Name="{}" Weight="{}%" RankType="{}">' \
-                .format('\t' * level, node_type, name, weight, rank)
-            xml += '\n{}<Formula>{}</Formula>'.format('\t' * (level + 1), node['Formula'])
-            xml += '\n{}</{}>'.format('\t' * level, node_type)
+            formula = node['Formula']
+            name = misc.coalesce(node.get('Name'), formula)
+            if node_type == 'Conditional':
+                xml += '\n{}<Conditional Name="{}" Weight="{}%" RankType="{}">' \
+                    .format('\t' * level, name, weight, rank)
+                xml += '\n{}<Formula>{}</Formula>'.format('\t' * (level + 1), formula)
+                xml += '\n{}<Boolean Name="True">'.format('\t' * (level + 1))
+                xml += screen_ranking_nodes_to_xml(node['True Nodes'], level + 2)
+                xml += '\n{}</Boolean>'.format('\t' * (level + 1))
+                xml += '\n{}<Boolean Name="False">'.format('\t' * (level + 1))
+                xml += screen_ranking_nodes_to_xml(node['False Nodes'], level + 2)
+                xml += '\n{}</Boolean>'.format('\t' * (level + 1))
+                xml += '\n{}</Conditional>'.format('\t' * level)
+            elif node_type == 'StockFormula':
+                xml += '\n{}<StockFormula Name="{}" Weight="{}%" RankType="{}" Scope="{}">' \
+                    .format('\t' * level, name, weight, rank, misc.coalesce(node.get('Scope'), 'Universe'))
+                xml += '\n{}<Formula>{}</Formula>'.format('\t' * (level + 1), formula)
+                xml += '\n{}</StockFormula>'.format('\t' * level)
+            else:
+                xml += '\n{}<{} Name="{}" Weight="{}%" RankType="{}">' \
+                    .format('\t' * level, node_type, name, weight, rank)
+                xml += '\n{}<Formula>{}</Formula>'.format('\t' * (level + 1), formula)
+                xml += '\n{}</{}>'.format('\t' * level, node_type)
     if level == 1:
         xml += '\n</RankingSystem>'
+        print(xml)
     return xml
 
 
