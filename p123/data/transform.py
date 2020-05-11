@@ -121,7 +121,6 @@ def screen_ranking_nodes_to_xml(nodes, level=1, main_rank=None):
                 xml += '\n{}</{}>'.format('\t' * level, node_type)
     if level == 1:
         xml += '\n</RankingSystem>'
-        print(xml)
     return xml
 
 
