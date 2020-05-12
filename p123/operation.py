@@ -494,23 +494,14 @@ class RankRanksPeriodOperation(Operation):
                 self._init_params['asOfDt'] = str(self._dates[self._iter_idx])
                 json = self._api_client.rank_ranks(self._init_params)
                 self._dates[self._iter_idx] = json['dt']
-                if self._iter_idx == 0:
-                    for idx, p123_uid in enumerate(json['p123Uids']):
+                for idx, p123_uid in enumerate(json['p123Uids']):
+                    if p123_uid not in self._ranks_by_p123_uid:
                         row = [p123_uid, json['tickers'][idx]]
                         if self._include_names:
                             row.append(json['names'][idx])
                         self._result.append(row)
                         self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
-                        self._ranks_by_p123_uid[p123_uid][0] = json['ranks'][idx]
-                else:
-                    for idx, p123_uid in enumerate(json['p123Uids']):
-                        if p123_uid not in self._ranks_by_p123_uid:
-                            row = [p123_uid, json['tickers'][idx]]
-                            if self._include_names:
-                                row.append(json['names'][idx])
-                            row.append(json['ranks'][idx])
-                            self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
-                        self._ranks_by_p123_uid[p123_uid][self._iter_idx] = json['ranks'][idx]
+                    self._ranks_by_p123_uid[p123_uid][self._iter_idx] = json['ranks'][idx]
                 self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
             except ClientException as e:
                 self._logger.error(e)
@@ -554,7 +545,11 @@ class RankRanksMultiOperation(IterOperation):
                 max_len = max(max_len, len(row[2]))
             self._header_row.append({'name': 'Name', 'justify': 'left', 'length': max_len})
         for iter_idx, iter_data in enumerate(self._data['Iterations']):
-            self._header_row.append(iter_data['Name'] if 'Name' in iter_data else f'Iteration {iter_idx + 1}')
+            name = iter_data.get('Name')
+            if not name:
+                ranking_system = iter_data['Ranking System']['value']
+                name = ranking_system if misc.is_str(ranking_system) else f'Iteration {iter_idx + 1}'
+            self._header_row.append(name)
         self._init_col_setup()
         self._result.insert(0, self._header_row)
         self._write_row_to_output(self._header_row, False)
@@ -577,23 +572,14 @@ class RankRanksMultiOperation(IterOperation):
         try:
             params = util.update_iter_params(self._init_params, iter_params)
             json = self._api_client.rank_ranks(params)
-            if self._iter_idx == 0:
-                for idx, p123_uid in enumerate(json['p123Uids']):
+            for idx, p123_uid in enumerate(json['p123Uids']):
+                if p123_uid not in self._ranks_by_p123_uid:
                     row = [p123_uid, json['tickers'][idx]]
                     if self._include_names:
                         row.append(json['names'][idx])
                     self._result.append(row)
                     self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
-                    self._ranks_by_p123_uid[p123_uid][0] = json['ranks'][idx]
-            else:
-                for idx, p123_uid in enumerate(json['p123Uids']):
-                    if p123_uid not in self._ranks_by_p123_uid:
-                        row = [p123_uid, json['tickers'][idx]]
-                        if self._include_names:
-                            row.append(json['names'][idx])
-                        row.append(json['ranks'][idx])
-                        self._ranks_by_p123_uid[p123_uid] = [None] * self._iter_cnt
-                    self._ranks_by_p123_uid[p123_uid][self._iter_idx] = json['ranks'][idx]
+                self._ranks_by_p123_uid[p123_uid][self._iter_idx] = json['ranks'][idx]
             self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
         except ClientException as e:
             self._logger.error(e)
