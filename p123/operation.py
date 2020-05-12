@@ -96,6 +96,13 @@ class Operation:
                 tk.END, content.rjust(length, ' ') if justify == 'right' else content.ljust(length, ' '))
         self._output.configure(state='disabled')
 
+    def _write_value_to_output(self, value, newline: bool = True):
+        self._output.configure(state='normal')
+        if newline:
+            self._output.insert(tk.END, '\n')
+        self._output.insert(tk.END, str(value))
+        self._output.configure(state='disabled')
+
     def run(self):
         try:
             run_outcome = self._run()
@@ -279,13 +286,19 @@ class ScreenBacktestOperation(Operation):
         ]
         self._init_col_setup()
         self._result.append(self._header_row)
-        self._write_row_to_output(self._header_row, False)
 
     def _init_header_row_results(self, columns):
-        columns[0] = {'name': columns[0], 'length': 12, 'justify': 'left'}
-        for idx, row in enumerate(columns[1:4]):
-            columns[idx] = {'name': row, 'length': 10, 'justify': 'left'}
+        for idx, row in enumerate(columns[0:4]):
+            columns[idx] = {'name': row, 'length': 10 + (2 if idx == 0 else 0), 'justify': 'left'}
         self._header_row = columns
+        self._init_col_setup()
+        self._result.append(self._header_row)
+
+    def _init_header_row_series(self):
+        self._header_row = [
+            {'name': 'Date', 'length': 10, 'justify': 'left'},
+            'Screen Return %', 'Benchmark Return %', 'Turnover %', '# Positions'
+        ]
         self._init_col_setup()
         self._result.append(self._header_row)
 
@@ -295,6 +308,7 @@ class ScreenBacktestOperation(Operation):
                 self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
             json = self._api_client.screen_backtest(self._default_params)
             self._result.append(['Stats'])
+            self._write_value_to_output('Stats', False)
             self._init_header_row_stats()
             stats = json['stats']
             item_stats = stats['port']
@@ -308,9 +322,10 @@ class ScreenBacktestOperation(Operation):
                 'Benchmark', item_stats['total_return'], item_stats['annualized_return'], item_stats['max_drawdown'],
                 item_stats['sharpe_ratio'], item_stats['sortino_ratio'], item_stats['standard_dev']
             ])
-            for row in self._result[1:101]:
+            rows_to_write = self._result[1:100]
+            for row in rows_to_write:
                 self._write_row_to_output(row)
-            rows_written = min(len(self._result) - 1, 100)
+            rows_written_cnt = len(rows_to_write) + 1
 
             self._result.append([])
             self._result.append(['Results'])
@@ -325,15 +340,26 @@ class ScreenBacktestOperation(Operation):
             data = json['results']['downMarkets']
             data[0] = 'Down Markets'
             self._result.append(data)
-            # self._result += json['rows']
-            # cnt = len(self._result[0])
-            # for row in self._result:
-            #     row[3] = round(float(row[3]), 2)
-            #     if cnt == 5:
-            #         row[4] = round(float(row[4]), 2)
-            # self._init_header_row_custom()
-            for row in self._result[1:101]:
-                self._write_row_to_output(row)
+            if rows_written_cnt < 100:
+                rows_to_write = self._result[rows_written_cnt:100]
+                for row in rows_to_write:
+                    self._write_row_to_output(row)
+                rows_written_cnt += len(rows_to_write)
+
+            self._result.append([])
+            self._result.append(['Time Series'])
+            self._init_header_row_series()
+            chart = json['chart']
+            for idx, date in enumerate(chart['dates']):
+                self._result.append([
+                    date, chart['screenReturns'][idx], chart['benchReturns'][idx], chart['turnoverPct'][idx],
+                    chart['positionCnt'][idx]
+                ])
+            if rows_written_cnt < 100:
+                rows_to_write = self._result[rows_written_cnt:100]
+                for row in rows_to_write:
+                    self._write_row_to_output(row)
+
             if len(self._result) > 101:
                 self._output.configure(state='normal')
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
