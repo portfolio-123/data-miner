@@ -362,8 +362,7 @@ class Gui(GuiBase):
                 if file:
                     with open(file, 'w', newline='') as stream:
                         csv_writer = csv.writer(stream)
-                        for row in rows:
-                            csv_writer.writerow(row)
+                        csv_writer.writerows(rows)
                         self._logger.info('Output saved to ' + file)
             else:
                 self._logger.error('Output is empty')

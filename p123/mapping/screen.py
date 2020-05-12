@@ -150,10 +150,14 @@ SCREEN_BACKTEST = {
     },
     'Risk Stats Period': {
         'field': 'riskStatsPeriod',
-        'isValid': functools.partial(validation.from_mapping, mapping=cons.SCREEN_BACKTEST_RISK_STATS_FREQ)
+        'isValid': functools.partial(validation.from_mapping, mapping=('monthly', 'weekly', 'daily'))
     }
 }
 SCREEN_BACKTEST.update(SCREEN_BACKTEST_SHARED)
+
+SCREEN_BACKTEST_SETTINGS = init.SETTINGS.copy()
+SCREEN_BACKTEST_SETTINGS.update(SCREEN_BACKTEST)
+SCREEN_BACKTEST_SETTINGS.update(SCREEN)
 
 ROLLING_SCREEN = {}
 ROLLING_SCREEN.update(SCREEN)

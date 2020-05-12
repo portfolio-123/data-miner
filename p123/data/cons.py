@@ -27,7 +27,6 @@ FREQ = [
 ]
 FREQ_BY_LABEL = {item['label']: item for item in FREQ}
 SCREEN_METHOD = {'long': 'long', 'short': 'short', 'longshort': 'long/short', 'hedged': 'hedged'}
-SCREEN_BACKTEST_RISK_STATS_FREQ = ('monthly', 'weekly', 'daily')
 SCREEN_ROLLING_BACKTEST_FREQ = {'1week': FREQ_BY_LABEL['1week']['value'], '4weeks': FREQ_BY_LABEL['4weeks']['value']}
 SCREEN_BACKTEST_FREQ = {item['label']: item['value'] for item in FREQ}
 SCREEN_ROLLING_BACKTEST_TRANS_PRICE = {'open': 1, 'close': 4, 'avghilow': 3}

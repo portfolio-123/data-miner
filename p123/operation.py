@@ -37,7 +37,7 @@ class Operation:
     def _init_default_params(self):
         self._has_init_error = False
         try:
-            self._init_params = util.generate_params(
+            self._default_params = util.generate_params(
                 data=self._data['Default Settings'], settings=self._data['Default Settings'],
                 api_client=self._api_client, logger=self._logger
             )
@@ -143,9 +143,9 @@ class IterOperation(Operation):
         pass
 
     def _check_api_item_change(self, iter_params):
-        if self._init_params.get('screen'):
+        if self._default_params.get('screen'):
             for change in IterOperation._api_item_change_checks:
-                if self._init_params['screen'].get(change[0]) == change[1]:
+                if self._default_params['screen'].get(change[0]) == change[1]:
                     if iter_params.get('screen') and iter_params['screen'].get(change[0]) == change[1]:
                         self._api_item_changed[change[0]] = True
                     elif self._api_item_changed.get(change[0]):
@@ -204,7 +204,7 @@ class ScreenRollingBacktestOperation(IterOperation):
 
     def _run_iter(self, *, iter_data, iter_params):
         try:
-            params = util.update_iter_params(self._init_params, iter_params)
+            params = util.update_iter_params(self._default_params, iter_params)
             json = self._api_client.screen_rolling_backtest(params)
             row = util.process_screen_rolling_backtest_result(
                 json, params.get('startDt'), params.get('endDt'))
@@ -225,12 +225,12 @@ class ScreenRunOperation(Operation):
     def _init_header_row_custom(self):
         self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
         max_len = 0
-        for ticker in self._result[:100]:
-            max_len = max(max_len, len(ticker))
+        for row in self._result[:100]:
+            max_len = max(max_len, len(row[1]))
         self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
         max_len = 0
-        for name in self._result[:100]:
-            max_len = max(max_len, len(name))
+        for row in self._result[:100]:
+            max_len = max(max_len, len(row[2]))
         self._header_row += [
             {'name': 'Name', 'justify': 'left', 'length': max_len},
             'Last'
@@ -243,13 +243,95 @@ class ScreenRunOperation(Operation):
 
     def _run(self):
         try:
-            if 'screen' not in self._init_params:
-                self._init_params['screen'] = {}
-            self._init_params['screen']['type'] = self._data['Default Settings']['Type']
-            json = self._api_client.screen_run(self._init_params)
-            print(json)
-            self._result += json.rows
+            if 'screen' not in self._default_params:
+                self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
+            json = self._api_client.screen_run(self._default_params)
+            self._result += json['rows']
+            cnt = len(self._result[0])
+            for row in self._result:
+                row[3] = round(float(row[3]), 2)
+                if cnt == 5:
+                    row[4] = round(float(row[4]), 2)
             self._init_header_row_custom()
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+
+        except ClientException as e:
+            self._logger.error(e)
+            return False
+
+        return True
+
+
+class ScreenBacktestOperation(Operation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+
+    def _init_header_row_stats(self):
+        self._header_row = [
+            {'name': '', 'length': 8, 'justify': 'left'},
+            'Tot Return', 'Ann Return', 'Max Dd', 'Sharpe', 'Sortino', 'StdDev', 'CorrelBench', 'R-Squared',
+            'Beta', 'Alpha'
+        ]
+        self._init_col_setup()
+        self._result.append(self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _init_header_row_results(self, columns):
+        columns[0] = {'name': columns[0], 'length': 12, 'justify': 'left'}
+        for idx, row in enumerate(columns[1:4]):
+            columns[idx] = {'name': row, 'length': 10, 'justify': 'left'}
+        self._header_row = columns
+        self._init_col_setup()
+        self._result.append(self._header_row)
+
+    def _run(self):
+        try:
+            if 'screen' not in self._default_params:
+                self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
+            json = self._api_client.screen_backtest(self._default_params)
+            self._result.append(['Stats'])
+            self._init_header_row_stats()
+            stats = json['stats']
+            item_stats = stats['port']
+            self._result.append([
+                'Screen', item_stats['total_return'], item_stats['annualized_return'], item_stats['max_drawdown'],
+                item_stats['sharpe_ratio'], item_stats['sortino_ratio'], item_stats['standard_dev'],
+                stats['correlation'], stats['r_squared'], stats['beta'], stats['alpha']
+            ])
+            item_stats = stats['bench']
+            self._result.append([
+                'Benchmark', item_stats['total_return'], item_stats['annualized_return'], item_stats['max_drawdown'],
+                item_stats['sharpe_ratio'], item_stats['sortino_ratio'], item_stats['standard_dev']
+            ])
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            rows_written = min(len(self._result) - 1, 100)
+
+            self._result.append([])
+            self._result.append(['Results'])
+            self._init_header_row_results(json['results']['columns'])
+            self._result += json['results']['rows']
+            data = json['results']['average']
+            data[0] = 'Average'
+            self._result.append(data)
+            data = json['results']['upMarkets']
+            data[0] = 'Up Markets'
+            self._result.append(data)
+            data = json['results']['downMarkets']
+            data[0] = 'Down Markets'
+            self._result.append(data)
+            # self._result += json['rows']
+            # cnt = len(self._result[0])
+            # for row in self._result:
+            #     row[3] = round(float(row[3]), 2)
+            #     if cnt == 5:
+            #         row[4] = round(float(row[4]), 2)
+            # self._init_header_row_custom()
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
             if len(self._result) > 101:
@@ -290,7 +372,7 @@ class DataOperation(IterOperation):
     def _run(self):
         run_outcome = super()._run()
         if run_outcome is not None and self._iter_idx > 0:
-            w_cusips = self._init_params.get('cusips')
+            w_cusips = self._default_params.get('cusips')
             for idx, date in enumerate(self._raw_result['dates']):
                 for p123_uid, item in self._raw_result['items'].items():
                     row = [date, p123_uid, item['ticker']]
@@ -309,9 +391,9 @@ class DataOperation(IterOperation):
         return run_outcome
 
     def _run_iter(self, *, iter_data, iter_params):
-        self._init_params['formulas'] = [iter_data['Formula']]
+        self._default_params['formulas'] = [iter_data['Formula']]
         try:
-            json = self._api_client.data(self._init_params)
+            json = self._api_client.data(self._default_params)
             if 'dates' not in self._raw_result:
                 self._raw_result['dates'] = json['dates']
             for p123_uid, item in json['items'].items():
@@ -337,8 +419,8 @@ class RankPerfOperation(IterOperation):
         super()._init_default_params()
         if self.has_init_error():
             return
-        if 'screen' not in self._init_params:
-            self._init_params['screen'] = {'type': self._data['Default Settings']['Type']}
+        if 'screen' not in self._default_params:
+            self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
 
     def _init_header_row(self):
         max_len = 0
@@ -352,7 +434,7 @@ class RankPerfOperation(IterOperation):
         self._header_row.append('Benchmark')
 
     def _run_iter(self, *, iter_data, iter_params):
-        params = util.update_iter_params(self._init_params, iter_params)
+        params = util.update_iter_params(self._default_params, iter_params)
         name = iter_data['Name'] if 'Name' in iter_data else 'Iteration ' + str(self._iter_idx + 1)
 
         if self._run_idx is None:
@@ -422,7 +504,7 @@ class RankRanksOperation(Operation):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
         self._columns = misc.coalesce(self._data['Default Settings'].get('Columns'), 'ranks').lower()
         if self._columns != 'ranks':
-            self._init_params['includeNodeDetails'] = True
+            self._default_params['includeNodeDetails'] = True
         self._include_names = self._data['Default Settings'].get('Include Names')
         if self._include_names:
             self._include_names = self._include_names['value']
@@ -462,9 +544,9 @@ class RankRanksOperation(Operation):
 
     def _run(self):
         try:
-            self._init_params['includeNaCnt'] = True
-            self._init_params['includeFinalStmt'] = True
-            json = self._api_client.rank_ranks(self._init_params)
+            self._default_params['includeNaCnt'] = True
+            self._default_params['includeFinalStmt'] = True
+            json = self._api_client.rank_ranks(self._default_params)
             self._init_header_row_custom(json)
             node_rank_idxs = []
             if self._columns != 'ranks':
@@ -537,8 +619,8 @@ class RankRanksPeriodOperation(Operation):
                 return
 
             try:
-                self._init_params['asOfDt'] = str(self._dates[self._iter_idx])
-                json = self._api_client.rank_ranks(self._init_params)
+                self._default_params['asOfDt'] = str(self._dates[self._iter_idx])
+                json = self._api_client.rank_ranks(self._default_params)
                 self._dates[self._iter_idx] = json['dt']
                 if self._iter_idx == 0:
                     for idx, p123_uid in enumerate(json['p123Uids']):
@@ -621,7 +703,7 @@ class RankRanksMultiOperation(IterOperation):
 
     def _run_iter(self, *, iter_data, iter_params):
         try:
-            params = util.update_iter_params(self._init_params, iter_params)
+            params = util.update_iter_params(self._default_params, iter_params)
             json = self._api_client.rank_ranks(params)
             if self._iter_idx == 0:
                 for idx, p123_uid in enumerate(json['p123Uids']):
@@ -833,5 +915,9 @@ OPERATIONS = {
     'screenrun': {
         'class': ScreenRunOperation,
         'mapping': {'settings': mapping_screen.SCREEN_RUN_SETTINGS}
+    },
+    'screenbacktest': {
+        'class': ScreenBacktestOperation,
+        'mapping': {'settings': mapping_screen.SCREEN_BACKTEST_SETTINGS}
     }
 }
