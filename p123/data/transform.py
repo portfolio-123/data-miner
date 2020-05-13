@@ -66,14 +66,8 @@ def screen_ranking(*, value, settings: dict, api_client: Client):
     return params
 
 
-def escape_xml(data, skip_quotes=True):
-    data = data.replace('&', '&amp;')
-    data = data.replace('<', '&lt;')
-    data = data.replace('>', '&gt;')
-    if not skip_quotes:
-        data = data.replace('"', '&quot;')
-        data = data.replace("'", '&apos;')
-    return data
+def escape_xml_attr(data):
+    return data.replace('"', '&quot;')
 
 
 def screen_ranking_nodes_to_xml(nodes, level=1, main_rank=None):
@@ -90,14 +84,14 @@ def screen_ranking_nodes_to_xml(nodes, level=1, main_rank=None):
         rank = misc.coalesce(node.get('Rank'), 'Higher')
 
         if node_type == 'Composite':
-            name = misc.coalesce(node.get('Name'), node_type)
+            name = escape_xml_attr(misc.coalesce(node.get('Name'), node_type))
             xml += '\n{}<Composite Name="{}" Weight="{}%" RankType="{}">'\
                 .format('\t' * level, name, weight, rank)
             xml += screen_ranking_nodes_to_xml(node['Nodes'], level + 1)
             xml += '\n{}</Composite>'.format('\t' * level)
         else:
             formula = node['Formula']
-            name = misc.coalesce(node.get('Name'), formula)
+            name = escape_xml_attr(misc.coalesce(node.get('Name'), formula))
             if node_type == 'Conditional':
                 xml += '\n{}<Conditional Name="{}" Weight="{}%" RankType="{}">' \
                     .format('\t' * level, name, weight, rank)
