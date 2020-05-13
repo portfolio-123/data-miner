@@ -1,5 +1,5 @@
 import logging
-from p123.api.client import Client
+from p123api import Client
 import statistics
 import utils.misc as misc
 import p123.mapping.init as mapping_init

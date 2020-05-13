@@ -3,8 +3,7 @@ import p123.data.cons as data_cons
 import utils.misc as misc
 import tkinter as tk
 import p123.data.transform as transform
-from p123.api.client import Client
-from p123.api.client import ClientException
+from p123api import Client, ClientException
 import p123.util as util
 import datetime
 import p123.mapping.init as mapping_init

@@ -1,9 +1,7 @@
-import p123.api.cons as api_cons
 import csv
 from tkinter import messagebox
 import threading
-from p123.api.client import Client
-from p123.api.client import ClientException
+from p123api import Client, ClientException
 import tkinter as tk
 from tkinter import ttk
 from gui.base import Base as GuiBase
@@ -32,11 +30,6 @@ class Gui(GuiBase):
 
         self._operation = None
 
-        if self._config.has_option('API', 'endpoint'):
-            endpoint = self._config.get('API', 'endpoint')
-            if endpoint:
-                api_cons.API_ENDPOINT = endpoint
-
         self._window.title(f'{cons.NAME} - v{cons.VERSION}')
         self._window.rowconfigure(0, weight=1, minsize=500)
         self._window.columnconfigure(0, weight=1, minsize=800)
@@ -58,6 +51,10 @@ class Gui(GuiBase):
         api_key = self._config.get('API', 'key') if self._config.has_option('API', 'key') else None
         if api_id and api_key:
             self._api_client = Client(api_id=api_id, api_key=api_key)
+            if self._config.has_option('API', 'endpoint'):
+                endpoint = self._config.get('API', 'endpoint')
+                if endpoint:
+                    self._api_client.set_endpoint(endpoint)
         else:
             self._api_client = None
 
@@ -87,6 +84,11 @@ class Gui(GuiBase):
 
     def _auth_check_credentials(self, api_id, api_key):
         self._api_client = Client(api_id=api_id, api_key=api_key)
+        if self._config.has_option('API', 'endpoint'):
+            endpoint = self._config.get('API', 'endpoint')
+            if endpoint:
+                self._api_client.set_endpoint(endpoint)
+
         error = None
         try:
             self._api_client.auth()

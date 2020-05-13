@@ -1,4 +1,4 @@
-from p123.api.client import Client
+from p123api import Client
 import utils.misc as misc
 import datetime
 import p123.data.cons as cons
