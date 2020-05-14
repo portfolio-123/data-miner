@@ -60,7 +60,7 @@ class Gui(GuiBase):
 
     # noinspection PyUnusedLocal
     def _on_close(self, *args):
-        if self._api_client and self._main.get('input_changed'):
+        if self._api_client and self._main and self._main.get('input_changed'):
             if not messagebox.askokcancel(
                     'Quit', 'Unsaved changes will be lost, are you sure you want to continue?'):
                 return
