@@ -17,6 +17,8 @@ import tkinter.filedialog as filedialog
 import os
 from utils.config import Config
 import p123.operation as operation
+import platform
+from pathlib import Path
 
 
 class Gui(GuiBase):
@@ -26,7 +28,13 @@ class Gui(GuiBase):
 
         self._auth = None
         self._main = None
-        self._config = Config(self._logger)
+
+        config_file = 'config.ini'
+        if platform.system() == 'Darwin':
+            app_user_folder = '{}/Library/Preferences/P123 Data Miner'.format(Path.home())
+            Path(app_user_folder).mkdir(parents=True, exist_ok=True)
+            config_file = app_user_folder + '/' + config_file
+        self._config = Config(self._logger, config_file)
 
         self._operation = None
 
