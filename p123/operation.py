@@ -105,8 +105,8 @@ class Operation:
     def run(self):
         try:
             run_outcome = self._run()
-        except Exception as e:
-            self._logger.error(e)
+        except Exception:
+            self._logger.error('Internal error')
             run_outcome = False
         if run_outcome is not None:
             self._finished = True

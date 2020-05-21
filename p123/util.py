@@ -135,19 +135,19 @@ def process_rank_perf_result(json: dict, rows: list, port_mode: bool = True):
 
     # Sharpe
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench]['sharpe_ratio']))
+    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('sharpe_ratio')))
 
     # Sortino
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench]['sortino_ratio']))
+    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('sortino_ratio')))
 
     # StdDev
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench]['standard_dev']))
+    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('standard_dev')))
 
     # Max Drawdown
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench]['max_drawdown']))
+    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('max_drawdown')))
 
     # Beta
     idx += 1
