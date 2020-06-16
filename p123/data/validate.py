@@ -1,5 +1,6 @@
 import utils.misc as misc
 import p123.data.cons as cons
+import datetime
 
 
 """
@@ -254,3 +255,7 @@ def data_tickers_cusips(val):
 
 def data_formula(val):
     return misc.is_int(val) or misc.is_str(val)
+
+
+def date(val):
+    return misc.parse_date(val) is not None

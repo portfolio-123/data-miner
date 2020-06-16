@@ -68,13 +68,13 @@ SCREEN_RUN = {
     },
     'As of Date': {
         'field': 'asOfDt',
-        'isValid': misc.is_date,
+        'isValid': validation.date,
         'transform': transform.date,
         'required': True
     },
     'End Date': {
         'field': 'endDt',
-        'isValid': misc.is_date,
+        'isValid': validation.date,
         'transform': transform.date
     }
 }
@@ -111,12 +111,12 @@ SCREEN_BACKTEST_SHARED = {
     },
     'Start Date': {
         'field': 'startDt',
-        'isValid': misc.is_date,
+        'isValid': validation.date,
         'transform': transform.date
     },
     'End Date': {
         'field': 'endDt',
-        'isValid': misc.is_date,
+        'isValid': validation.date,
         'transform': transform.date
     }
 }

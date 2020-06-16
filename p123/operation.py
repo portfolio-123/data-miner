@@ -433,6 +433,56 @@ class DataOperation(IterOperation):
             raise IterationFailedException
 
 
+class DataUniverseOperation(IterOperation):
+    def __init__(self, *, api_client, data, output, logger: logging.Logger):
+        super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._raw_result = {'data': []}
+
+    def _init_header_row_custom(self):
+        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
+        max_len = 0
+        for ticker in self._result[:100]:
+            max_len = max(max_len, len(ticker))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        for idx, data in enumerate(self._data['Iterations']):
+            name = misc.coalesce(data.get('Name'), data['Formula'])[:50]
+            self._header_row.append({'name': name, 'length': max(len(name), 12)})
+        self._init_col_setup()
+        self._result.insert(0, self._header_row)
+        self._write_row_to_output(self._header_row, False)
+
+    def _run(self):
+        run_outcome = super()._run()
+        if run_outcome is not None and self._iter_idx > 0:
+            for idx, p123_uid in enumerate(self._raw_result['p123Uids']):
+                row = [p123_uid, self._raw_result['tickers'][idx]]
+                for data in self._raw_result['data']:
+                    row.append(data[idx])
+                self._result.append(row)
+            self._init_header_row_custom()
+            for row in self._result[1:101]:
+                self._write_row_to_output(row)
+            if len(self._result) > 101:
+                self._output.configure(state='normal')
+                self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
+                self._output.configure(state='disabled')
+        return run_outcome
+
+    def _run_iter(self, *, iter_data, iter_params):
+        self._default_params['formulas'] = [iter_data['Formula']]
+        try:
+            json = self._api_client.data_universe(self._default_params)
+            if 'p123Uids' not in self._raw_result:
+                self._raw_result['p123Uids'] = json['p123Uids']
+                self._raw_result['tickers'] = json['tickers']
+            self._raw_result['data'].append(json['data'][0])
+            self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
+        except ClientException as e:
+            self._logger.error(e)
+            self._logger.warning(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed")
+            raise IterationFailedException
+
+
 class RankPerfOperation(IterOperation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         self._buckets = data['Default Settings']['Buckets']
@@ -930,5 +980,10 @@ OPERATIONS = {
     'screenbacktest': {
         'class': ScreenBacktestOperation,
         'mapping': {'settings': mapping_screen.SCREEN_BACKTEST_SETTINGS}
+    },
+    'datauniverse': {
+        'has_iterations': True,
+        'class': DataUniverseOperation,
+        'mapping': {'settings': mapping_data.UNIVERSE_SETTINGS, 'iterations': mapping_data.ITERATIONS}
     }
 }

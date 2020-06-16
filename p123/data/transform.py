@@ -11,7 +11,7 @@ Functions for transforming human readable values into API compatible parameters
 
 # noinspection PyUnusedLocal
 def date(*, value: datetime.date, **kwargs):
-    return value.strftime('%Y-%m-%d')
+    return misc.parse_date(value).strftime('%Y-%m-%d')
 
 
 def universe(*, value, settings: dict, api_client: Client):

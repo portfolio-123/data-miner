@@ -10,12 +10,13 @@ FREQ = {item['label']: item['value'] for item in cons.FREQ[1:]}
 SETTINGS = {
     'Start Date': {
         'field': 'startDt',
-        'isValid': misc.is_date,
-        'transform': transform.date
+        'isValid': validation.date,
+        'transform': transform.date,
+        'required': True
     },
     'End Date': {
         'field': 'endDt',
-        'isValid': misc.is_date,
+        'isValid': validation.date,
         'transform': transform.date
     },
     'Frequency': {
@@ -40,6 +41,22 @@ SETTINGS = {
     }
 }
 SETTINGS.update(init.SETTINGS)
+
+UNIVERSE_SETTINGS = {
+    'As of Date': {
+        'field': 'asOfDt',
+        'isValid': validation.date,
+        'transform': transform.date,
+        'required': True
+    },
+    'Universe': {
+        'field': 'universe',
+        'isValid': validation.universe,
+        'transform': transform.universe,
+        'required': True
+    }
+}
+UNIVERSE_SETTINGS.update(init.SETTINGS)
 
 ITERATIONS = {
     'Formula': {

@@ -20,7 +20,7 @@ RANKS = {
     },
     'As of Date': {
         'field': 'asOfDt',
-        'isValid': misc.is_date,
+        'isValid': validation.date,
         'transform': transform.date,
         'required': True
     },
@@ -54,12 +54,12 @@ RANKS.update(mapping_init.SETTINGS)
 RANKS_PERIOD = RANKS.copy()
 del RANKS_PERIOD['As of Date'], RANKS_PERIOD['Columns']
 RANKS_PERIOD['Start Date'] = {
-    'isValid': misc.is_date,
+    'isValid': validation.date,
     'transform': transform.date,
     'required': True
 }
 RANKS_PERIOD['End Date'] = {
-    'isValid': misc.is_date,
+    'isValid': validation.date,
     'transform': transform.date,
     'required': True
 }
