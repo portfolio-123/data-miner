@@ -170,7 +170,7 @@ def validate_main(*, settings, logger: logging.Logger):
     return True
 
 
-def validate_op_settings(*, operation, settings, logger: logging.Logger):
+def validate_settings(*, operation, settings, logger: logging.Logger):
     for prop, meta_info in operation['mapping']['settings'].items():
         if meta_info.get('required') and prop not in settings:
             logger.error(f'"Default Settings" section does not contain the required property "{prop}"')
@@ -178,7 +178,7 @@ def validate_op_settings(*, operation, settings, logger: logging.Logger):
     return True
 
 
-def validate_op_iteration(*, operation, iteration_idx, iteration_data, logger: logging.Logger):
+def validate_iteration(*, operation, iteration_idx, iteration_data, logger: logging.Logger):
     if 'iterations' in operation['mapping']:
         for prop, meta_info in operation['mapping']['iterations'].items():
             if meta_info.get('required') and prop not in iteration_data:

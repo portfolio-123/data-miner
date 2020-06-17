@@ -19,6 +19,7 @@ from utils.config import Config
 import p123.operation as operation
 import platform
 from pathlib import Path
+from gui.scrolled_text_horizontal import ScrolledTextHorizontal
 
 
 class Gui(GuiBase):
@@ -328,7 +329,7 @@ class Gui(GuiBase):
         main_frame = ttk.Frame(self._main['notebook'], padding=5)
         self._main['notebook'].add(main_frame, text='Output')
 
-        self._main['output'] = ScrolledText(main_frame, state='disabled')
+        self._main['output'] = ScrolledTextHorizontal(main_frame, state='disabled')
         self._main['output'].place(relwidth=1, relheight=1)
 
     def _build_console_frame(self):

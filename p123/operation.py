@@ -416,9 +416,10 @@ class DataOperation(IterOperation):
         return run_outcome
 
     def _run_iter(self, *, iter_data, iter_params):
-        self._default_params['formulas'] = [iter_data['Formula']]
         try:
-            json = self._api_client.data(self._default_params)
+            params = util.update_iter_params(self._default_params, iter_params)
+            params['formulas'] = [iter_data['Formula']]
+            json = self._api_client.data(params)
             if 'dates' not in self._raw_result:
                 self._raw_result['dates'] = json['dates']
             for p123_uid, item in json['items'].items():
@@ -469,9 +470,10 @@ class DataUniverseOperation(IterOperation):
         return run_outcome
 
     def _run_iter(self, *, iter_data, iter_params):
-        self._default_params['formulas'] = [iter_data['Formula']]
         try:
-            json = self._api_client.data_universe(self._default_params)
+            params = util.update_iter_params(self._default_params, iter_params)
+            params['formulas'] = [iter_data['Formula']]
+            json = self._api_client.data_universe(params)
             if 'p123Uids' not in self._raw_result:
                 self._raw_result['p123Uids'] = json['p123Uids']
                 self._raw_result['tickers'] = json['tickers']
@@ -889,7 +891,7 @@ def process_input(*, data: dict, logger: logging.Logger):
     if operation is None:
         logger.error(f'Invalid value for "Operation" property in "Main" section')
         return False
-    operation_has_iterations = operation.get('has_iterations')
+    operation_has_iterations = operation['mapping']. ('has_iterations')
 
     if operation_has_iterations and 'Iterations' not in data:
         logger.error('"Iterations" section not found')
@@ -909,7 +911,7 @@ def process_input(*, data: dict, logger: logging.Logger):
         return False
     if not process_input_section(section='Default Settings', operation=operation, data=settings_data, logger=logger):
         return False
-    if not util.validate_op_settings(operation=operation, settings=data['Default Settings'], logger=logger):
+    if not util.validate_settings(operation=operation, settings=data['Default Settings'], logger=logger):
         return False
     if 'validate_settings' in operation and not operation['validate_settings'](data['Default Settings'], logger):
         return False
@@ -933,7 +935,7 @@ def process_input(*, data: dict, logger: logging.Logger):
                 logger=logger
         ):
             return False
-        if not util.validate_op_iteration(
+        if not util.validate_iteration(
                 operation=operation, iteration_idx=iteration_idx, iteration_data=iteration_data, logger=logger):
             return False
 
@@ -942,7 +944,6 @@ def process_input(*, data: dict, logger: logging.Logger):
 
 OPERATIONS = {
     'rollingscreen': {
-        'has_iterations': True,
         'class': ScreenRollingBacktestOperation,
         'mapping': {
             'settings': mapping_screen.ROLLING_SCREEN_SETTINGS,
@@ -950,12 +951,10 @@ OPERATIONS = {
         }
     },
     'rankperformance': {
-        'has_iterations': True,
         'class': RankPerfOperation,
         'mapping': {'settings': mapping_screen.RANK_PERF_SETTINGS, 'iterations': mapping_screen.RANK_PERF_ITERATIONS}
     },
     'data': {
-        'has_iterations': True,
         'class': DataOperation,
         'mapping': {'settings': mapping_data.SETTINGS, 'iterations': mapping_data.ITERATIONS},
         'validate_settings': util.validate_data_settings
@@ -969,7 +968,6 @@ OPERATIONS = {
         'mapping': {'settings': mapping_rank.RANKS_PERIOD}
     },
     'ranksmulti': {
-        'has_iterations': True,
         'class': RankRanksMultiOperation,
         'mapping': {'settings': mapping_rank.RANKS_MULTI_SETTINGS, 'iterations': mapping_rank.RANKS_MULTI_ITERATIONS}
     },
@@ -982,7 +980,6 @@ OPERATIONS = {
         'mapping': {'settings': mapping_screen.SCREEN_BACKTEST_SETTINGS}
     },
     'datauniverse': {
-        'has_iterations': True,
         'class': DataUniverseOperation,
         'mapping': {'settings': mapping_data.UNIVERSE_SETTINGS, 'iterations': mapping_data.ITERATIONS}
     }
