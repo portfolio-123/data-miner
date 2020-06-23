@@ -1,6 +1,5 @@
 import utils.misc as misc
 import p123.data.cons as cons
-import datetime
 
 
 """
@@ -258,4 +257,22 @@ def data_formula(val):
 
 
 def date(val):
+    return misc.parse_date(val) is not None
+
+
+def data_univ_formulas(val):
+    if not misc.is_list(val):
+        return False
+    for item in val:
+        if not (misc.is_number(item) or misc.is_str(item) or (misc.is_dict(item) and len(item) == 1)):
+            return False
+    return True
+
+
+def data_univ_as_of_date(val):
+    if misc.is_list(val):
+        for dt in val:
+            if misc.parse_date(dt) is None:
+                return False
+        return True
     return misc.parse_date(val) is not None

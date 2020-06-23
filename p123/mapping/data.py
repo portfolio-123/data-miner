@@ -2,7 +2,6 @@ import p123.data.validate as validation
 import p123.data.transform as transform
 import p123.mapping.init as init
 import p123.data.cons as cons
-import utils.misc as misc
 import functools
 
 
@@ -44,15 +43,17 @@ SETTINGS.update(init.SETTINGS)
 
 UNIVERSE_SETTINGS = {
     'As of Date': {
-        'field': 'asOfDt',
-        'isValid': validation.date,
-        'transform': transform.date,
+        'isValid': validation.data_univ_as_of_date,
         'required': True
     },
     'Universe': {
         'field': 'universe',
         'isValid': validation.universe,
         'transform': transform.universe,
+        'required': True
+    },
+    'Formulas': {
+        'isValid': validation.data_univ_formulas,
         'required': True
     }
 }

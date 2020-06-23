@@ -434,30 +434,37 @@ class DataOperation(IterOperation):
             raise IterationFailedException
 
 
-class DataUniverseOperation(IterOperation):
+class DataUniverseOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
-        self._raw_result = {'data': []}
 
     def _init_header_row_custom(self):
         self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
         max_len = 0
-        for ticker in self._result[:100]:
-            max_len = max(max_len, len(ticker))
+        for item in self._result[:100]:
+            max_len = max(max_len, len(item[1]))
         self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
-        for idx, data in enumerate(self._data['Iterations']):
-            name = misc.coalesce(data.get('Name'), data['Formula'])[:50]
+        for formula in self._data['Default Settings']['Formulas']:
+            name = str(list(formula.keys())[0] if misc.is_dict(formula) else formula)[:50]
             self._header_row.append({'name': name, 'length': max(len(name), 12)})
         self._init_col_setup()
         self._result.insert(0, self._header_row)
         self._write_row_to_output(self._header_row, False)
 
     def _run(self):
-        run_outcome = super()._run()
-        if run_outcome is not None and self._iter_idx > 0:
-            for idx, p123_uid in enumerate(self._raw_result['p123Uids']):
-                row = [p123_uid, self._raw_result['tickers'][idx]]
-                for data in self._raw_result['data']:
+        try:
+            self._default_params['formulas'] = list(map(
+                lambda item: str(list(item.values())[0] if misc.is_dict(item) else item),
+                self._data['Default Settings']['Formulas']
+            ))
+            as_of_dt = self._data['Default Settings']['As of Date']
+            if misc.is_list(as_of_dt):
+                as_of_dt = as_of_dt[0]
+            self._default_params['asOfDt'] = transform.date(value=as_of_dt)
+            json = self._api_client.data_universe(self._default_params)
+            for idx, p123_uid in enumerate(json['p123Uids']):
+                row = [p123_uid, json['tickers'][idx]]
+                for data in json['data']:
                     row.append(data[idx])
                 self._result.append(row)
             self._init_header_row_custom()
@@ -467,22 +474,11 @@ class DataUniverseOperation(IterOperation):
                 self._output.configure(state='normal')
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
-        return run_outcome
-
-    def _run_iter(self, *, iter_data, iter_params):
-        try:
-            params = util.update_iter_params(self._default_params, iter_params)
-            params['formulas'] = [iter_data['Formula']]
-            json = self._api_client.data_universe(params)
-            if 'p123Uids' not in self._raw_result:
-                self._raw_result['p123Uids'] = json['p123Uids']
-                self._raw_result['tickers'] = json['tickers']
-            self._raw_result['data'].append(json['data'][0])
-            self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
         except ClientException as e:
             self._logger.error(e)
-            self._logger.warning(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed")
-            raise IterationFailedException
+            return False
+
+        return True
 
 
 class RankPerfOperation(IterOperation):
@@ -891,7 +887,7 @@ def process_input(*, data: dict, logger: logging.Logger):
     if operation is None:
         logger.error(f'Invalid value for "Operation" property in "Main" section')
         return False
-    operation_has_iterations = operation['mapping']. ('has_iterations')
+    operation_has_iterations = operation['mapping'].get('iterations') is not None
 
     if operation_has_iterations and 'Iterations' not in data:
         logger.error('"Iterations" section not found')
@@ -981,6 +977,6 @@ OPERATIONS = {
     },
     'datauniverse': {
         'class': DataUniverseOperation,
-        'mapping': {'settings': mapping_data.UNIVERSE_SETTINGS, 'iterations': mapping_data.ITERATIONS}
+        'mapping': {'settings': mapping_data.UNIVERSE_SETTINGS}
     }
 }

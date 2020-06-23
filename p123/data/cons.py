@@ -11,7 +11,7 @@ ROLLING_SCREEN_COLUMNS = [
     {'name': 'Start', 'justify': 'left', 'length': 10},
     {'name': 'End', 'justify': 'left', 'length': 10},
     'Periods', 'Avg#Pos', 'AvgRet%', 'AvgBench%', 'AvgExcess%',
-    'Min%NoSlip', 'Max%NoSlip', 'AvgStdDev', 'Top12AvgRet%', 'Top60AvgRet%'
+    'Min%NoSlip', 'Max%NoSlip', 'AvgStdDev', 'Last13AvgRet%', 'Last65AvgRet%'
 ]
 FREQ = [
     {'label': '1day', 'value': 'Every Day', 'days': 1},

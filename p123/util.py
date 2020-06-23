@@ -66,8 +66,8 @@ def process_screen_rolling_backtest_result(json: dict, start_dt, end_dt):
     data.append(round(min(float(item[8]) for item in json['rows']), 2))
     data.append(round(max(float(item[9]) for item in json['rows']), 2))
     data.append(round(json['average'][10], 2))
-    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:12]), 2) if length >= 12 else None)
-    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:60]), 2) if length >= 60 else None)
+    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:13]), 2) if length >= 13 else None)
+    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:65]), 2) if length >= 65 else None)
     return data
 
 
