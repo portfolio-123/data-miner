@@ -20,6 +20,10 @@ def from_mapping(value, **kwargs):
     return misc.is_str(value) and value.lower() in kwargs['mapping']
 
 
+def from_mapping_any(value, **kwargs):
+    return value in kwargs['mapping']
+
+
 def universe(univ):
     if misc.is_str(univ):
         return True

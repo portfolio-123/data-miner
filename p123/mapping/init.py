@@ -9,6 +9,9 @@ MAIN = {
     },
     'On Error': {
         'isValid': functools.partial(validation.from_mapping, mapping=('stop', 'continue'))
+    },
+    'Precision': {
+        'isValid': functools.partial(validation.from_mapping_any, mapping=(2, 3, 4))
     }
 }
 

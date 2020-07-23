@@ -37,10 +37,10 @@ RANKS = {
         'isValid': functools.partial(validation.from_mapping, mapping=cons.RANKING_METHOD),
         'transform': functools.partial(transform.from_mapping, mapping=cons.RANKING_METHOD)
     },
-    'Industry': {
-        'field': 'industry',
-        'isValid': misc.is_str
-    },
+    # 'Industry': {
+    #     'field': 'industry',
+    #     'isValid': misc.is_str
+    # },
     'Tickers': {
         'field': 'tickers',
         'isValid': misc.is_str

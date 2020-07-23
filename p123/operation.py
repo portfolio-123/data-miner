@@ -40,6 +40,9 @@ class Operation:
                 data=self._data['Default Settings'], settings=self._data['Default Settings'],
                 api_client=self._api_client, logger=self._logger
             )
+            precision = self._data['Main'].get('Precision')
+            if precision is not None:
+                self._default_params['precision'] = precision
         except ClientException as e:
             self._logger.error(e)
             self._has_init_error = True
@@ -105,7 +108,8 @@ class Operation:
     def run(self):
         try:
             run_outcome = self._run()
-        except Exception:
+        except Exception as e:
+            print(e)
             self._logger.error('Internal error')
             run_outcome = False
         if run_outcome is not None:
@@ -213,7 +217,7 @@ class ScreenRollingBacktestOperation(IterOperation):
             params = util.update_iter_params(self._default_params, iter_params)
             json = self._api_client.screen_rolling_backtest(params)
             row = util.process_screen_rolling_backtest_result(
-                json, params.get('startDt'), params.get('endDt'))
+                json, params.get('startDt'), params.get('endDt'), params.get('precision'))
             row = [iter_data['Name'] if 'Name' in iter_data else 'Iteration ' + str(self._iter_idx + 1)] + row
             self._result.append(row)
             self._write_row_to_output(row)
@@ -253,11 +257,6 @@ class ScreenRunOperation(Operation):
                 self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
             json = self._api_client.screen_run(self._default_params)
             self._result += json['rows']
-            cnt = len(self._result[0])
-            for row in self._result:
-                row[3] = round(float(row[3]), 2)
-                if cnt == 5:
-                    row[4] = round(float(row[4]), 2)
             self._init_header_row_custom()
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
@@ -375,18 +374,28 @@ class DataOperation(IterOperation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
         self._raw_result = {'items': {}}
+        self._include_names = self._data['Default Settings'].get('Include Names')
+        if self._include_names:
+            self._include_names = self._include_names['value']
+        self._include_cusips = self._data['Default Settings'].get('Cusips')
 
     def _init_header_row_custom(self):
         self._header_row = [
             {'name': 'Date', 'justify': 'left', 'length': 10},
             {'name': 'P123 UID', 'justify': 'left', 'length': 10}
         ]
-        max_len = 0
-        for ticker in self._result[:100]:
-            max_len = max(max_len, len(ticker))
-        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
-        if self._data['Default Settings'].get('Cusips'):
+        max_len_ticker = 6
+        max_len_name = 12
+        name_idx = 4 if self._include_cusips else 3
+        for row in self._result[:100]:
+            max_len_ticker = max(max_len_ticker, len(row[2]))
+            if self._include_names:
+                max_len_name = max(max_len_name, len(row[name_idx]))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len_ticker})
+        if self._include_cusips:
             self._header_row.append({'name': 'Cusip', 'justify': 'left', 'length': 9})
+        if self._include_names:
+            self._header_row.append({'name': 'Company Name', 'justify': 'left', 'length': max_len_name})
         for idx, data in enumerate(self._data['Iterations']):
             name = misc.coalesce(data.get('Name'), data['Formula'])[:50]
             self._header_row.append({'name': name, 'length': max(len(name), 12)})
@@ -397,12 +406,13 @@ class DataOperation(IterOperation):
     def _run(self):
         run_outcome = super()._run()
         if run_outcome is not None and self._iter_idx > 0:
-            w_cusips = self._default_params.get('cusips')
             for idx, date in enumerate(self._raw_result['dates']):
                 for p123_uid, item in self._raw_result['items'].items():
                     row = [date, p123_uid, item['ticker']]
-                    if w_cusips:
+                    if self._include_cusips:
                         row.append(item['cusip'])
+                    if self._include_names:
+                        row.append(item['name'])
                     for series_data in item['series']:
                         row.append(series_data[idx])
                     self._result.append(row)
@@ -437,13 +447,21 @@ class DataOperation(IterOperation):
 class DataUniverseOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        self._include_names = self._data['Default Settings'].get('Include Names')
+        if self._include_names:
+            self._include_names = self._include_names['value']
 
     def _init_header_row_custom(self):
         self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
-        max_len = 0
-        for item in self._result[:100]:
-            max_len = max(max_len, len(item[1]))
-        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+        max_len_ticker = 6
+        max_len_name = 12
+        for row in self._result[:100]:
+            max_len_ticker = max(max_len_ticker, len(row[1]))
+            if self._include_names:
+                max_len_name = max(max_len_name, len(row[2]))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len_ticker})
+        if self._include_names:
+            self._header_row.append({'name': 'Company Name', 'justify': 'left', 'length': max_len_name})
         for formula in self._data['Default Settings']['Formulas']:
             name = str(list(formula.keys())[0] if misc.is_dict(formula) else formula)[:50]
             self._header_row.append({'name': name, 'length': max(len(name), 12)})
@@ -464,6 +482,8 @@ class DataUniverseOperation(Operation):
             json = self._api_client.data_universe(self._default_params)
             for idx, p123_uid in enumerate(json['p123Uids']):
                 row = [p123_uid, json['tickers'][idx]]
+                if self._include_names:
+                    row.append(json['names'][idx])
                 for data in json['data']:
                     row.append(data[idx])
                 self._result.append(row)
@@ -538,9 +558,9 @@ class RankPerfOperation(IterOperation):
 
             try:
                 json = self._api_client.screen_backtest(params)
-                util.process_rank_perf_result(json, self._run_rows)
+                util.process_rank_perf_result(json, self._run_rows, True, params.get('precision'))
                 if self._run_idx == self._buckets:
-                    util.process_rank_perf_result(json, self._run_rows, False)
+                    util.process_rank_perf_result(json, self._run_rows, False, params.get('precision'))
                 self._logger.info(
                     f"Iteration {self._iter_idx + 1}/{self._iter_cnt} "
                     f"run {self._run_idx + 1}/{self._buckets + 1}: success")

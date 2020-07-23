@@ -41,9 +41,9 @@ def coalesce(var, default):
     return var if var is not None else default
 
 
-def round2_or_none(val):
+def round_or_none(val, precision=2):
     if val is not None:
-        val = round(val, 2)
+        val = round(val, precision)
     return val
 
 

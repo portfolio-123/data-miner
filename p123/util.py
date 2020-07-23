@@ -59,19 +59,26 @@ def update_iter_params(init_params: dict, iter_params: dict):
     return params
 
 
-def process_screen_rolling_backtest_result(json: dict, start_dt, end_dt):
+def process_screen_rolling_backtest_result(json: dict, start_dt, end_dt, precision):
+    if precision is None:
+        precision = 2
     length = len(json['rows'])
     data = [start_dt, end_dt, length]
-    data.extend(round(val, 2) for val in json['average'][4:8])
-    data.append(round(min(float(item[8]) for item in json['rows']), 2))
-    data.append(round(max(float(item[9]) for item in json['rows']), 2))
-    data.append(round(json['average'][10], 2))
-    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:13]), 2) if length >= 13 else None)
-    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:65]), 2) if length >= 65 else None)
+    data.extend(val for val in json['average'][4:8])
+    data.append(min(float(item[8]) for item in json['rows']))
+    data.append(max(float(item[9]) for item in json['rows']))
+    data.append(json['average'][10])
+    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:13]), precision)
+                if length >= 13 else None)
+    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:65]), precision)
+                if length >= 65 else None)
     return data
 
 
-def process_rank_perf_result(json: dict, rows: list, port_mode: bool = True):
+def process_rank_perf_result(json: dict, rows: list, port_mode: bool, precision):
+    if precision is None:
+        precision = 2
+
     port_or_bench = 'port' if port_mode else 'bench'
 
     # one results iteration to rule them all
@@ -92,74 +99,75 @@ def process_rank_perf_result(json: dict, rows: list, port_mode: bool = True):
 
     # Annualized return
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench]['annualized_return']))
+    rows[idx].append(misc.round_or_none(json['stats'][port_or_bench]['annualized_return'], precision))
 
     # Average excess return
     idx += 1
     rows[idx].append(
-        misc.round2_or_none(json['stats']['port']['annualized_return'] - json['stats']['bench']['annualized_return'])
+        misc.round_or_none(json['stats']['port']['annualized_return'] - json['stats']['bench']['annualized_return'],
+                           precision)
         if port_mode else None
     )
 
     # Total return
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench]['total_return']))
+    rows[idx].append(misc.round_or_none(json['stats'][port_or_bench]['total_return'], precision))
 
     # % of periods strategy outperforms
     idx += 1
-    rows[idx].append(round(per_outperform_cnt / len(json['results']['rows']) * 100, 2) if port_mode else None)
+    rows[idx].append(round(per_outperform_cnt / len(json['results']['rows']) * 100, precision) if port_mode else None)
 
     # Max gain
     idx += 1
-    rows[idx].append(round(max_gain, 2))
+    rows[idx].append(round(max_gain, precision))
 
     # Max loss
     idx += 1
-    rows[idx].append(round(max_loss, 2))
+    rows[idx].append(round(max_loss, precision))
 
     # Max gain single stock
     idx += 1
-    rows[idx].append(round(max_gain_single_stock, 2) if port_mode else None)
+    rows[idx].append(round(max_gain_single_stock, precision) if port_mode else None)
 
     # Max loss single stock
     idx += 1
-    rows[idx].append(round(max_loss_single_stock, 2) if port_mode else None)
+    rows[idx].append(round(max_loss_single_stock, precision) if port_mode else None)
 
     # Avg excess return in Up markets
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['results']['upMarkets'][10]) if port_mode else None)
+    rows[idx].append(misc.round_or_none(json['results']['upMarkets'][10], precision) if port_mode else None)
 
     # Avg Excess Return in Down Markets
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['results']['downMarkets'][10]) if port_mode else None)
+    rows[idx].append(misc.round_or_none(json['results']['downMarkets'][10], precision) if port_mode else None)
 
     # Sharpe
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('sharpe_ratio')))
+    rows[idx].append(misc.round_or_none(json['stats'][port_or_bench].get('sharpe_ratio'), precision))
 
     # Sortino
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('sortino_ratio')))
+    rows[idx].append(misc.round_or_none(json['stats'][port_or_bench].get('sortino_ratio'), precision))
 
     # StdDev
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('standard_dev')))
+    rows[idx].append(misc.round_or_none(json['stats'][port_or_bench].get('standard_dev'), precision))
 
     # Max Drawdown
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats'][port_or_bench].get('max_drawdown')))
+    rows[idx].append(misc.round_or_none(json['stats'][port_or_bench].get('max_drawdown'), precision))
 
     # Beta
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats']['beta']) if port_mode else None)
+    rows[idx].append(misc.round_or_none(json['stats']['beta'], precision) if port_mode else None)
 
     # Alpha
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['stats']['alpha']) if port_mode else None)
+    rows[idx].append(misc.round_or_none(json['stats']['alpha'], precision) if port_mode else None)
 
     # Avg Number of Positions
     idx += 1
-    rows[idx].append(misc.round2_or_none(json['results']['average'][4]) if port_mode else None)
+    rows[idx].append(misc.round_or_none(json['results']['average'][4], precision) if port_mode else None)
 
 
 def validate_main(*, settings, logger: logging.Logger):

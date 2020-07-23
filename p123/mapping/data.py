@@ -2,6 +2,7 @@ import p123.data.validate as validation
 import p123.data.transform as transform
 import p123.mapping.init as init
 import p123.data.cons as cons
+import utils.misc as misc
 import functools
 
 
@@ -37,6 +38,10 @@ SETTINGS = {
         'field': 'cusips',
         'isValid': validation.data_tickers_cusips,
         'transform': transform.data_items
+    },
+    'Include Names': {
+        'field': 'includeNames',
+        'isValid': misc.is_bool
     }
 }
 SETTINGS.update(init.SETTINGS)
@@ -55,6 +60,10 @@ UNIVERSE_SETTINGS = {
     'Formulas': {
         'isValid': validation.data_univ_formulas,
         'required': True
+    },
+    'Include Names': {
+        'field': 'includeNames',
+        'isValid': misc.is_bool
     }
 }
 UNIVERSE_SETTINGS.update(init.SETTINGS)
