@@ -65,6 +65,9 @@ class Operation:
     def _init_header_row(self):
         self._header_row = []
 
+    def get_name(self):
+        return self._data['Main'].get('Operation')
+
     def has_init_error(self):
         return self._has_init_error
 

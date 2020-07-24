@@ -20,6 +20,7 @@ import p123.operation as operation
 import platform
 from pathlib import Path
 from gui.scrolled_text_horizontal import ScrolledTextHorizontal
+import datetime
 
 
 class Gui(GuiBase):
@@ -192,6 +193,20 @@ class Gui(GuiBase):
             self._main['btn_save_output'] = ttk.Button(frame, text='Save output', command=self._save_output)
             self._main['btn_save_output'].pack(side=tk.LEFT, padx=(5, 0))
 
+            self._auto_save_output_init()
+            ttk.Checkbutton(
+                frame,
+                text='Auto save output',
+                variable=self._auto_save,
+                command=self._auto_save_output_toggle
+            ).pack(side=tk.LEFT, padx=(5, 0))
+
+            self._main['btn_auto_save_output_folder'] = ttk.Label(
+                frame,
+                text='(' + self._auto_save_folder + ')' if self._auto_save.get() else ''
+            )
+            self._main['btn_auto_save_output_folder'].pack(side=tk.LEFT)
+
             self._main['notebook'] = ttk.Notebook(inner_frame)
             self._main['notebook'].grid(row=1, column=0, sticky='NSEW')
 
@@ -201,6 +216,34 @@ class Gui(GuiBase):
 
         self._main['frame'].tkraise()
         self._build_menu()
+
+    def _auto_save_output_init(self):
+        self._auto_save = tk.IntVar()
+        if not self._config.has_section('OUTPUT'):
+            self._config.add_section('OUTPUT')
+        if self._config.has_option('OUTPUT', 'auto_save'):
+            self._auto_save.set(1)
+        print(self._auto_save.get())
+        self._auto_save_folder = self._config.get('OUTPUT', 'auto_save_folder') if self._auto_save else None
+
+    def _auto_save_output_toggle(self, init: bool = True):
+        if init:
+            threading.Thread(target=self._auto_save_output_toggle, args=[False]).start()
+            return
+
+        if not self._auto_save.get():
+            self._config.remove_option('OUTPUT', 'auto_save')
+        else:
+            self._auto_save_folder = filedialog.askdirectory()
+            if not self._auto_save_folder:
+                self._auto_save.set(0)
+                return
+            self._config.set('OUTPUT', 'auto_save', 'yes')
+            self._config.set('OUTPUT', 'auto_save_folder', self._auto_save_folder)
+        self._main['btn_auto_save_output_folder'].configure(
+            text='(' + self._auto_save_folder + ')' if self._auto_save.get() else ''
+        )
+        self._config.save()
 
     def _build_menu(self):
         save_callback = functools.partial(self._save_input, False, True)
@@ -354,7 +397,7 @@ class Gui(GuiBase):
         self._logger_handler = ConsoleLoggerHandler(console)
         self._logger.addHandler(self._logger_handler)
 
-    def _save_output(self, init: bool = True):
+    def _save_output(self, init: bool = True, from_btn: bool = True):
         """
         Dumps content of the output (as csv) into user selected file.
         Calls itself in a separate thread to avoid blocking and blocks operations that might
@@ -363,13 +406,17 @@ class Gui(GuiBase):
         if init:
             self.toggle_state(self._main['btn_execute'])
             self.toggle_state(self._main['btn_save_output'])
-            threading.Thread(target=self._save_output, args=[False]).start()
+            threading.Thread(target=self._save_output, args=[False, from_btn]).start()
             return
 
         try:
             rows = self._operation.get_result() if self._operation is not None else None
             if rows:
-                file = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('csv', '*.csv')])
+                if from_btn:
+                    file = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('csv', '*.csv')])
+                else:
+                    file = self._auto_save_folder + '/' + str(self._operation.get_name()).lower() + '_' +\
+                           datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.csv'
                 if file:
                     with open(file, 'w', newline='') as stream:
                         csv_writer = csv.writer(stream)
@@ -655,6 +702,8 @@ class Gui(GuiBase):
             if self._operation is not None:
                 self._operation.stop()
             self._logger.info('Stopped')
+        elif self._auto_save:
+            self._save_output(True, False)
 
     def _clear_console(self):
         self._logger_handler.clear()
