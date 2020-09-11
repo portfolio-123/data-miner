@@ -223,8 +223,7 @@ class Gui(GuiBase):
             self._config.add_section('OUTPUT')
         if self._config.has_option('OUTPUT', 'auto_save'):
             self._auto_save.set(1)
-        print(self._auto_save.get())
-        self._auto_save_folder = self._config.get('OUTPUT', 'auto_save_folder') if self._auto_save else None
+        self._auto_save_folder = self._config.get('OUTPUT', 'auto_save_folder') if self._auto_save.get() else None
 
     def _auto_save_output_toggle(self, init: bool = True):
         if init:
@@ -702,7 +701,7 @@ class Gui(GuiBase):
             if self._operation is not None:
                 self._operation.stop()
             self._logger.info('Stopped')
-        elif self._auto_save:
+        elif self._auto_save.get():
             self._save_output(True, False)
 
     def _clear_console(self):
