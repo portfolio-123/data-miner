@@ -40,6 +40,9 @@ class Operation:
                 data=self._data['Default Settings'], settings=self._data['Default Settings'],
                 api_client=self._api_client, logger=self._logger
             )
+            if self._default_params is None:
+                self._has_init_error = True
+                return
             precision = self._data['Main'].get('Precision')
             if precision is not None:
                 self._default_params['precision'] = precision
@@ -204,6 +207,7 @@ class ScreenRollingBacktestOperation(IterOperation):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
         self._result.append(self._header_row)
         self._write_row_to_output(self._header_row, False)
+        self._include_results = self._data['Default Settings'].get('Include Results')
 
     def _init_header_row(self):
         max_len = 0
@@ -221,9 +225,24 @@ class ScreenRollingBacktestOperation(IterOperation):
             json = self._api_client.screen_rolling_backtest(params)
             row = util.process_screen_rolling_backtest_result(
                 json, params.get('startDt'), params.get('endDt'), params.get('precision'))
-            row = [iter_data['Name'] if 'Name' in iter_data else 'Iteration ' + str(self._iter_idx + 1)] + row
-            self._result.append(row)
+            name = iter_data['Name'] if 'Name' in iter_data else 'Iteration ' + str(self._iter_idx + 1)
+            row = [name] + row
+            self._result.insert(self._iter_idx + 1, row)
             self._write_row_to_output(row)
+
+            # append all results
+            if self._include_results:
+                precision = params.get('precision')
+                if precision is None:
+                    precision = 2
+                self._result.append([])
+                self._result.append([name])
+                self._result.append(data_cons.ROLLING_SCREEN_COLUMNS_ALL)
+                for row in json['rows']:
+                    for row_idx, row_data in enumerate(row[5:]):
+                        row[5 + row_idx] = round(row_data, precision)
+                    self._result.append(row)
+
             self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
         except ClientException as e:
             self._logger.error(e)

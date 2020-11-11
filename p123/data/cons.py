@@ -11,7 +11,13 @@ ROLLING_SCREEN_COLUMNS = [
     {'name': 'Start', 'justify': 'left', 'length': 10},
     {'name': 'End', 'justify': 'left', 'length': 10},
     'Periods', 'Avg#Pos', 'AvgRet%', 'AvgBench%', 'AvgExcess%',
-    'Min%NoSlip', 'Max%NoSlip', 'AvgStdDev', 'Last13AvgRet%', 'Last65AvgRet%'
+    'Min%NoSlip', 'Max%NoSlip', 'AvgStdDev', 'Last13AvgRet%', 'Last65AvgRet%',
+    'GeoMeanRet%', 'GeoMeanBench%', 'Last13GeoMeanRet%', 'Last65GeoMeanRet%',
+    'Last65Avg#Pos'
+]
+ROLLING_SCREEN_COLUMNS_ALL = [
+    'As of Dt', 'Rank Dt', 'Tran Dt', 'End Dt', '#Pos', 'Ret%', 'Bench%', 'Excess%', 'Min % no slip', 'Max % no slip',
+    'StdDev'
 ]
 FREQ = [
     {'label': '1day', 'value': 'Every Day', 'days': 1},

@@ -68,10 +68,32 @@ def process_screen_rolling_backtest_result(json: dict, start_dt, end_dt, precisi
     data.append(min(float(item[8]) for item in json['rows']))
     data.append(max(float(item[9]) for item in json['rows']))
     data.append(json['average'][10])
-    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:13]), precision)
-                if length >= 13 else None)
-    data.append(round(statistics.fmean(float(item[5]) for item in json['rows'][0:65]), precision)
-                if length >= 65 else None)
+    data.append(
+        round(statistics.fmean(float(item[5]) for item in json['rows'][0:13]), precision)
+        if length >= 13 else None
+    )
+    data.append(
+        round(statistics.fmean(float(item[5]) for item in json['rows'][0:65]), precision)
+        if length >= 65 else None
+    )
+    data.append(
+        round((statistics.geometric_mean(float(item[5]) / 100 + 1 for item in json['rows']) - 1) * 100, precision)
+    )
+    data.append(
+        round((statistics.geometric_mean(float(item[6]) / 100 + 1 for item in json['rows']) - 1) * 100, precision)
+    )
+    data.append(
+        round((statistics.geometric_mean(float(item[5]) / 100 + 1 for item in json['rows'][0:13]) - 1) * 100, precision)
+        if length >= 13 else None
+    )
+    data.append(
+        round((statistics.geometric_mean(float(item[5]) / 100 + 1 for item in json['rows'][0:65]) - 1) * 100, precision)
+        if length >= 65 else None
+    )
+    data.append(
+        round(statistics.fmean(float(item[4]) for item in json['rows'][0:65]), precision)
+        if length >= 65 else None
+    )
     return data
 
 

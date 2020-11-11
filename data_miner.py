@@ -259,32 +259,37 @@ class Gui(GuiBase):
         save_callback = functools.partial(self._save_input, False, True)
         save_as_callback = functools.partial(self._save_input, True, True)
 
-        menu_bar = tk.Menu(self._window)
+        if not self._main.get('menu_bar'):
+            self._main['menu_bar'] = tk.Menu(self._window)
 
-        input_menu = tk.Menu(menu_bar, tearoff=0)
-        input_menu.add_command(label='Open', underline=0, accelerator="Ctrl+O", command=self._open_input_file)
-        input_menu.add_command(
-            label='Close', underline=0, accelerator="Ctrl+Shift+C", command=self._close_input_file)
-        input_menu.add_command(label='Save', underline=0, accelerator="Ctrl+S", command=save_callback)
-        input_menu.add_command(label='Save As', underline=5, accelerator="Ctrl+Shift+S",
-                               command=save_as_callback)
-        menu_bar.add_cascade(label='Input', underline=0, menu=input_menu)
+            input_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
+            input_menu.add_command(label='Open', underline=0, accelerator="Ctrl+O", command=self._open_input_file)
+            input_menu.add_command(
+                label='Close', underline=0, accelerator="Ctrl+Shift+C", command=self._close_input_file)
+            input_menu.add_command(label='Save', underline=0, accelerator="Ctrl+S", command=save_callback)
+            input_menu.add_command(label='Save As', underline=5, accelerator="Ctrl+Shift+S",
+                                   command=save_as_callback)
+            self._main['menu_bar'].add_cascade(label='Input', underline=0, menu=input_menu)
 
-        session_menu = tk.Menu(menu_bar, tearoff=0)
-        session_menu.add_command(label=f'API ID: {self._api_client.get_api_id()}')
-        session_menu.add_command(label='Logout', underline=0, accelerator="Ctrl+L", command=self._logout)
-        session_menu.add_command(label='Quit', underline=0, accelerator="Ctrl+Q", command=self._on_close)
-        menu_bar.add_cascade(label=f'Session', underline=0, menu=session_menu)
+            session_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
+            session_menu.add_command(label=f'API ID: {self._api_client.get_api_id()}')
+            session_menu.add_command(label='Logout', underline=0, accelerator="Ctrl+L", command=self._logout)
+            session_menu.add_command(label='Quit', underline=0, accelerator="Ctrl+Q", command=self._on_close)
+            self._main['menu_bar'].add_cascade(label=f'Session', underline=0, menu=session_menu)
 
-        self._main['menu_input_open_cmd'] = (input_menu, 0)
-        self._main['menu_input_close_cmd'] = (input_menu, 1)
-        self._main['menu_input_save_cmd'] = (input_menu, 2)
-        self._main['menu_input_save_as_cmd'] = (input_menu, 3)
-        self._main['menu_session_logout'] = (session_menu, 1)
-        self.toggle_state(self._main['menu_input_close_cmd'])
-        self.toggle_state(self._main['menu_input_save_cmd'])
+            self._main['menu_input_open_cmd'] = (input_menu, 0)
+            self._main['menu_input_close_cmd'] = (input_menu, 1)
+            self._main['menu_input_save_cmd'] = (input_menu, 2)
+            self._main['menu_input_save_as_cmd'] = (input_menu, 3)
+            self._main['menu_session_api_id'] = (session_menu, 0)
+            self._main['menu_session_logout'] = (session_menu, 1)
+            self.toggle_state(self._main['menu_input_close_cmd'])
+            self.toggle_state(self._main['menu_input_save_cmd'])
+        else:
+            self._main['menu_session_api_id'][0].entryconfig(
+                self._main['menu_session_api_id'][1], label=f'API ID: {self._api_client.get_api_id()}')
 
-        self._window.config(menu=menu_bar)
+        self._window.config(menu=self._main['menu_bar'])
 
         GuiBase.bind_ci(self._window, True, modifier='Control', letter='o', callback=self._open_input_file)
         GuiBase.bind_ci(self._window, True, modifier='Control-Shift', letter='c', callback=self._close_input_file)
