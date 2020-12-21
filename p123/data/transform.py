@@ -91,7 +91,7 @@ def screen_ranking_nodes_to_xml(nodes, level=1, main_rank=None):
             xml += '\n{}</Composite>'.format('\t' * level)
         else:
             formula = node['Formula']
-            name = escape_xml_attr(misc.coalesce(node.get('Name'), formula))
+            name = escape_xml_attr(misc.coalesce(node.get('Name'), formula)[:50])
             if node_type == 'Conditional':
                 xml += '\n{}<Conditional Name="{}" Weight="{}%" RankType="{}">' \
                     .format('\t' * level, name, weight, rank)

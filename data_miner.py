@@ -57,6 +57,11 @@ class Gui(GuiBase):
         api_key = self._config.get('API', 'key') if self._config.has_option('API', 'key') else None
         if api_id and api_key:
             self._api_client = Client(api_id=api_id, api_key=api_key)
+            if self._config.has_option('API', 'endpoint'):
+                endpoint = self._config.get('API', 'endpoint')
+                if endpoint:
+                    self._api_client.set_endpoint(endpoint)
+
             frame = ttk.Frame(self._window)
             frame.grid(row=0, column=0, sticky='NSEW')
             ttk.Label(frame, text='Authenticating...').pack(expand=1)
@@ -67,10 +72,6 @@ class Gui(GuiBase):
                 self._config.remove_option('API', 'key')
                 self._config.save()
             frame.destroy()
-            if self._config.has_option('API', 'endpoint'):
-                endpoint = self._config.get('API', 'endpoint')
-                if endpoint:
-                    self._api_client.set_endpoint(endpoint)
         else:
             self._api_client = None
 

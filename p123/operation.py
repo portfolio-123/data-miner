@@ -392,10 +392,9 @@ class ScreenBacktestOperation(Operation):
         return True
 
 
-class DataOperation(IterOperation):
+class DataOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
-        self._raw_result = {'items': {}}
         self._include_names = self._data['Default Settings'].get('Include Names')
         if self._include_names:
             self._include_names = self._include_names['value']
@@ -418,18 +417,22 @@ class DataOperation(IterOperation):
             self._header_row.append({'name': 'Cusip', 'justify': 'left', 'length': 9})
         if self._include_names:
             self._header_row.append({'name': 'Company Name', 'justify': 'left', 'length': max_len_name})
-        for idx, data in enumerate(self._data['Iterations']):
-            name = misc.coalesce(data.get('Name'), data['Formula'])[:50]
+        for formula in self._data['Default Settings']['Formulas']:
+            name = str(list(formula.keys())[0] if misc.is_dict(formula) else formula)[:50]
             self._header_row.append({'name': name, 'length': max(len(name), 12)})
         self._init_col_setup()
         self._result.insert(0, self._header_row)
         self._write_row_to_output(self._header_row, False)
 
     def _run(self):
-        run_outcome = super()._run()
-        if run_outcome is not None and self._iter_idx > 0:
-            for idx, date in enumerate(self._raw_result['dates']):
-                for p123_uid, item in self._raw_result['items'].items():
+        try:
+            self._default_params['formulas'] = list(map(
+                lambda the_item: str(list(the_item.values())[0] if misc.is_dict(the_item) else the_item),
+                self._data['Default Settings']['Formulas']
+            ))
+            json = self._api_client.data(self._default_params)
+            for idx, date in enumerate(json['dates']):
+                for p123_uid, item in json['items'].items():
                     row = [date, p123_uid, item['ticker']]
                     if self._include_cusips:
                         row.append(item['cusip'])
@@ -445,42 +448,48 @@ class DataOperation(IterOperation):
                 self._output.configure(state='normal')
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
-        return run_outcome
-
-    def _run_iter(self, *, iter_data, iter_params):
-        try:
-            params = util.update_iter_params(self._default_params, iter_params)
-            params['formulas'] = [iter_data['Formula']]
-            json = self._api_client.data(params)
-            if 'dates' not in self._raw_result:
-                self._raw_result['dates'] = json['dates']
-            for p123_uid, item in json['items'].items():
-                if p123_uid not in self._raw_result['items']:
-                    self._raw_result['items'][p123_uid] = item
-                else:
-                    self._raw_result['items'][p123_uid]['series'] += item['series']
-            self._logger.info(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: success")
         except ClientException as e:
             self._logger.error(e)
-            self._logger.warning(f"Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed")
-            raise IterationFailedException
+            return False
+
+        return True
 
 
 class DataUniverseOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        date = self._data['Default Settings']['As of Date']
+        end_date = self._data['Default Settings'].get('End Date')
+        today = datetime.date.today()
+        if end_date is None:
+            end_date = date
+        elif end_date > today:
+            end_date = today
+        self._dates = []
+        freq = data['Default Settings'].get('Frequency')
+        if freq is None:
+            freq = data_cons.FREQ[1]['label']
+        days = data_cons.FREQ_BY_LABEL[freq.lower()]['days']
+        while date <= end_date:
+            self._dates.append(date)
+            date = date + datetime.timedelta(days=days)
+        self._iter_idx = 0
+        self._iter_cnt = len(self._dates)
         self._include_names = self._data['Default Settings'].get('Include Names')
         if self._include_names:
             self._include_names = self._include_names['value']
 
     def _init_header_row_custom(self):
-        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
+        self._header_row = [
+            {'name': 'Date', 'justify': 'left', 'length': 10},
+            {'name': 'P123 UID', 'justify': 'left', 'length': 10}
+        ]
         max_len_ticker = 6
         max_len_name = 12
         for row in self._result[:100]:
-            max_len_ticker = max(max_len_ticker, len(row[1]))
+            max_len_ticker = max(max_len_ticker, len(row[2]))
             if self._include_names:
-                max_len_name = max(max_len_name, len(row[2]))
+                max_len_name = max(max_len_name, len(row[3]))
         self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len_ticker})
         if self._include_names:
             self._header_row.append({'name': 'Company Name', 'justify': 'left', 'length': max_len_name})
@@ -492,23 +501,35 @@ class DataUniverseOperation(Operation):
         self._write_row_to_output(self._header_row, False)
 
     def _run(self):
-        try:
-            self._default_params['formulas'] = list(map(
-                lambda item: str(list(item.values())[0] if misc.is_dict(item) else item),
-                self._data['Default Settings']['Formulas']
-            ))
-            as_of_dt = self._data['Default Settings']['As of Date']
-            if misc.is_list(as_of_dt):
-                as_of_dt = as_of_dt[0]
-            self._default_params['asOfDt'] = transform.date(value=as_of_dt)
-            json = self._api_client.data_universe(self._default_params)
-            for idx, p123_uid in enumerate(json['p123Uids']):
-                row = [p123_uid, json['tickers'][idx]]
-                if self._include_names:
-                    row.append(json['names'][idx])
-                for data in json['data']:
-                    row.append(data[idx])
-                self._result.append(row)
+        self._default_params['formulas'] = list(map(
+            lambda item: str(list(item.values())[0] if misc.is_dict(item) else item),
+            self._data['Default Settings']['Formulas']
+        ))
+
+        while self._iter_idx < self._iter_cnt:
+            if self.is_paused():
+                return
+
+            try:
+                self._default_params['asOfDt'] = str(self._dates[self._iter_idx])
+                json = self._api_client.data_universe(self._default_params)
+                for idx, p123_uid in enumerate(json['p123Uids']):
+                    row = [json['dt'], p123_uid, json['tickers'][idx]]
+                    if self._include_names:
+                        row.append(json['names'][idx])
+                    for data in json['data']:
+                        row.append(data[idx])
+                    self._result.append(row)
+                self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
+            except ClientException as e:
+                self._logger.error(e)
+                self._logger.warning(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed')
+                if not self._continue_on_error:
+                    break
+
+            self._iter_idx += 1
+
+        if self._iter_idx > 0:
             self._init_header_row_custom()
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
@@ -516,11 +537,8 @@ class DataUniverseOperation(Operation):
                 self._output.configure(state='normal')
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
-        except ClientException as e:
-            self._logger.error(e)
-            return False
 
-        return True
+        return self._iter_idx == self._iter_cnt
 
 
 class RankPerfOperation(IterOperation):
@@ -617,66 +635,113 @@ class RankPerfOperation(IterOperation):
 class RankRanksOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
+        date = self._data['Default Settings']['As of Date']['value']
+        end_date = self._data['Default Settings'].get('End Date')
+        today = datetime.date.today()
+        if end_date is None:
+            end_date = date
+        elif end_date > today:
+            end_date = today
+        self._dates = []
+        freq = data['Default Settings'].get('Frequency')
+        if freq is None:
+            freq = data_cons.FREQ[1]['label']
+        days = data_cons.FREQ_BY_LABEL[freq.lower()]['days']
+        while date <= end_date:
+            self._dates.append(date)
+            date = date + datetime.timedelta(days=days)
+        self._iter_idx = 0
+        self._iter_cnt = len(self._dates)
         self._columns = misc.coalesce(self._data['Default Settings'].get('Columns'), 'ranks').lower()
         if self._columns != 'ranks':
-            self._default_params['includeNodeDetails'] = True
+            self._default_params['nodeDetails'] = self._columns
         self._include_names = self._data['Default Settings'].get('Include Names')
         if self._include_names:
             self._include_names = self._include_names['value']
 
-    def _init_header_row_custom(self, json):
-        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
-        max_len = 0
-        for ticker in json['tickers'][:100]:
-            max_len = max(max_len, len(ticker))
-        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
+    def _init_header_row_custom(self):
+        self._header_row = [
+            {'name': 'Date', 'justify': 'left', 'length': 10},
+            {'name': 'P123 UID', 'justify': 'left', 'length': 10}
+        ]
+        max_len_ticker = 6
+        max_len_name = 12
+        for row in self._result[:100]:
+            max_len_ticker = max(max_len_ticker, len(row[2]))
+            if self._include_names:
+                max_len_name = max(max_len_name, len(row[3]))
+        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len_ticker})
         if self._include_names:
-            max_len = 0
-            for name in json['names'][:100]:
-                max_len = max(max_len, len(name))
-            self._header_row.append({'name': 'Name', 'justify': 'left', 'length': max_len})
+            self._header_row.append({'name': 'Company Name', 'justify': 'left', 'length': max_len_name})
         self._header_row += [
             '#NAs',
             'Final Stmt',
             '100% rank'
         ]
         if self._columns != 'ranks':
-            self._add_nodes_to_header_row(json)
+            self._add_nodes_to_header_row()
+        additional_data = self._data['Default Settings'].get('Additional Data')
+        if additional_data is not None:
+            for formula in additional_data:
+                name = str(list(formula.keys())[0] if misc.is_dict(formula) else formula)[:50]
+                self._header_row.append({'name': name, 'length': max(len(name), 12)})
         self._init_col_setup()
-        self._result.append(self._header_row)
+        self._result.insert(0, self._header_row)
         self._write_row_to_output(self._header_row, False)
 
-    def _add_nodes_to_header_row(self, json):
-        for idx, name in enumerate(json['nodes']['names']):
+    def _add_nodes_to_header_row(self):
+        for idx, name in enumerate(self._nodes['names']):
             if idx == 0:
-                continue
-            node_type = json['nodes']['types'][idx]
-            if self._columns == 'composite' and node_type == 1:
                 continue
             # noinspection PyTypeChecker
             self._header_row.append(
-                '{}% {} ({})'.format(json['nodes']['weights'][idx], name, json['nodes']['parents'][idx]))
+                '{}% {} ({})'.format(self._nodes['weights'][idx], name, self._nodes['parents'][idx]))
 
     def _run(self):
-        try:
-            self._default_params['includeNaCnt'] = True
-            self._default_params['includeFinalStmt'] = True
-            json = self._api_client.rank_ranks(self._default_params)
-            self._init_header_row_custom(json)
-            node_rank_idxs = []
-            if self._columns != 'ranks':
-                for node_idx, node_type in enumerate(json['nodes']['types']):
-                    if node_idx > 0 and (self._columns == 'factor' or node_type == 0):
-                        node_rank_idxs.append(node_idx)
-            for idx, p123_uid in enumerate(json['p123Uids']):
-                row = [p123_uid, json['tickers'][idx]]
-                if self._include_names:
-                    row.append(json['names'][idx])
-                row += [json['naCnt'][idx], 'Y' if json['finalStmt'][idx] else 'N', json['ranks'][idx]]
-                if self._columns:
-                    for node_idx in node_rank_idxs:
-                        row.append(json['nodes']['ranks'][idx][node_idx])
-                self._result.append(row)
+        self._default_params['includeNaCnt'] = True
+        self._default_params['includeFinalStmt'] = True
+        additional_data = self._data['Default Settings'].get('Additional Data')
+        if additional_data is not None:
+            self._default_params['additionalData'] = list(map(
+                lambda item: str(list(item.values())[0] if misc.is_dict(item) else item),
+                additional_data
+            ))
+
+        while self._iter_idx < self._iter_cnt:
+            if self.is_paused():
+                return
+
+            try:
+                self._default_params['asOfDt'] = str(self._dates[self._iter_idx])
+                json = self._api_client.rank_ranks(self._default_params)
+                if self._columns != 'ranks' and self._iter_idx == 0:
+                    self._nodes = json['nodes']
+                additional_data = json.get('additionalData')
+                for idx, p123_uid in enumerate(json['p123Uids']):
+                    row = [json['dt'], p123_uid, json['tickers'][idx]]
+                    if self._include_names:
+                        row.append(json['names'][idx])
+                    row += [json['naCnt'][idx], 'Y' if json['finalStmt'][idx] else 'N', json['ranks'][idx]]
+                    if self._columns != 'ranks':
+                        for node_idx, rank in enumerate(json['nodes']['ranks'][idx]):
+                            if node_idx > 0:
+                                row.append(rank)
+                    if additional_data is not None:
+                        row += additional_data[idx]
+                    self._result.append(row)
+
+                self._logger.info(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: success')
+
+            except ClientException as e:
+                self._logger.error(e)
+                self._logger.warning(f'Iteration {self._iter_idx + 1}/{self._iter_cnt}: failed')
+                if not self._continue_on_error:
+                    break
+
+            self._iter_idx += 1
+
+        if self._iter_idx > 0:
+            self._init_header_row_custom()
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
             if len(self._result) > 101:
@@ -684,11 +749,7 @@ class RankRanksOperation(Operation):
                 self._output.insert(tk.END, '\nOnly showing first 100 rows in preview.')
                 self._output.configure(state='disabled')
 
-        except ClientException as e:
-            self._logger.error(e)
-            return False
-
-        return True
+        return self._iter_idx == self._iter_cnt
 
 
 class RankRanksPeriodOperation(Operation):
@@ -701,7 +762,7 @@ class RankRanksPeriodOperation(Operation):
             end_date = today
         self._dates = []
         days = data_cons.FREQ_BY_LABEL[data['Default Settings']['Frequency'].lower()]['days']
-        while date < end_date:
+        while date <= end_date:
             self._dates.append(date)
             date = date + datetime.timedelta(days=days)
         self._iter_idx = 0
@@ -994,7 +1055,7 @@ OPERATIONS = {
     },
     'data': {
         'class': DataOperation,
-        'mapping': {'settings': mapping_data.SETTINGS, 'iterations': mapping_data.ITERATIONS},
+        'mapping': {'settings': mapping_data.SETTINGS},
         'validate_settings': util.validate_data_settings
     },
     'ranks': {

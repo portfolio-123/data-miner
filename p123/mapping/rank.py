@@ -5,8 +5,7 @@ import p123.mapping.init as mapping_init
 import utils.misc as misc
 import functools
 
-
-RANKS = {
+RANKS_COMMON = {
     'Ranking System': {
         'field': 'rankingSystem',
         'isValid': validation.ranking_system,
@@ -23,6 +22,14 @@ RANKS = {
         'isValid': validation.date,
         'transform': transform.date,
         'required': True
+    },
+    'End Date': {
+        'isValid': validation.date,
+        'transform': transform.date
+    },
+    'Frequency': {
+        'isValid': functools.partial(
+            validation.from_mapping, mapping={item['label']: item['value'] for item in cons.FREQ[1:]})
     },
     'Include Names': {
         'field': 'includeNames',
@@ -49,29 +56,29 @@ RANKS = {
         'isValid': functools.partial(validation.from_mapping, mapping=['ranks', 'composite', 'factor'])
     }
 }
-RANKS.update(mapping_init.SETTINGS)
+RANKS_COMMON.update(mapping_init.SETTINGS)
 
-RANKS_PERIOD = RANKS.copy()
+RANKS = RANKS_COMMON.copy()
+RANKS['Additional Data'] = {
+    'isValid': validation.data_univ_formulas
+}
+
+RANKS_PERIOD = RANKS_COMMON.copy()
 del RANKS_PERIOD['As of Date'], RANKS_PERIOD['Columns']
 RANKS_PERIOD['Start Date'] = {
     'isValid': validation.date,
     'transform': transform.date,
     'required': True
 }
-RANKS_PERIOD['End Date'] = {
-    'isValid': validation.date,
-    'transform': transform.date,
-    'required': True
-}
-RANKS_PERIOD['Frequency'] = {
-    'isValid': functools.partial(
-        validation.from_mapping, mapping={item['label']: item['value'] for item in cons.FREQ[1:]}),
-    'required': True
-}
+RANKS_PERIOD['End Date'] = dict(RANKS_PERIOD['End Date'])
+RANKS_PERIOD['End Date']['required'] = True
+RANKS_PERIOD['Frequency'] = dict(RANKS_PERIOD['Frequency'])
+RANKS_PERIOD['Frequency']['required'] = True
 
 
-RANKS_MULTI_SETTINGS = RANKS.copy()
-del RANKS_MULTI_SETTINGS['Ranking System'], RANKS_MULTI_SETTINGS['Ranking Method'], RANKS_MULTI_SETTINGS['Columns']
+RANKS_MULTI_SETTINGS = RANKS_COMMON.copy()
+del RANKS_MULTI_SETTINGS['End Date'], RANKS_MULTI_SETTINGS['Frequency'], RANKS_MULTI_SETTINGS['Ranking System'],\
+    RANKS_MULTI_SETTINGS['Ranking Method'], RANKS_MULTI_SETTINGS['Columns']
 RANKS_MULTI_ITERATIONS = mapping_init.ITERATIONS.copy()
-RANKS_MULTI_ITERATIONS['Ranking System'] = RANKS['Ranking System']
-RANKS_MULTI_ITERATIONS['Ranking Method'] = RANKS['Ranking Method']
+RANKS_MULTI_ITERATIONS['Ranking System'] = RANKS_COMMON['Ranking System']
+RANKS_MULTI_ITERATIONS['Ranking Method'] = RANKS_COMMON['Ranking Method']

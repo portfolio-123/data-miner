@@ -39,6 +39,10 @@ SETTINGS = {
         'isValid': validation.data_tickers_cusips,
         'transform': transform.data_items
     },
+    'Formulas': {
+        'isValid': validation.data_univ_formulas,
+        'required': True
+    },
     'Include Names': {
         'field': 'includeNames',
         'isValid': misc.is_bool
@@ -48,8 +52,17 @@ SETTINGS.update(init.SETTINGS)
 
 UNIVERSE_SETTINGS = {
     'As of Date': {
-        'isValid': validation.data_univ_as_of_date,
+        'isValid': validation.date,
+        'transform': transform.date,
         'required': True
+    },
+    'End Date': {
+        'isValid': validation.date,
+        'transform': transform.date
+    },
+    'Frequency': {
+        'isValid': functools.partial(
+            validation.from_mapping, mapping={item['label']: item['value'] for item in cons.FREQ[1:]})
     },
     'Universe': {
         'field': 'universe',
@@ -67,11 +80,3 @@ UNIVERSE_SETTINGS = {
     }
 }
 UNIVERSE_SETTINGS.update(init.SETTINGS)
-
-ITERATIONS = {
-    'Formula': {
-        'isValid': validation.data_formula,
-        'required': True
-    }
-}
-ITERATIONS.update(init.ITERATIONS)
