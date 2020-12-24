@@ -51,7 +51,7 @@ SETTINGS = {
 SETTINGS.update(init.SETTINGS)
 
 UNIVERSE_SETTINGS = {
-    'As of Date': {
+    'Start Date': {
         'isValid': validation.date,
         'transform': transform.date,
         'required': True

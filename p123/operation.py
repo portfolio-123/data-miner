@@ -458,12 +458,12 @@ class DataOperation(Operation):
 class DataUniverseOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
-        date = self._data['Default Settings']['As of Date']
+        date = self._data['Default Settings']['Start Date']
+        weekday = date.weekday()
+        date = date + datetime.timedelta(days=5 - weekday if weekday <= 5 else 6)
         end_date = self._data['Default Settings'].get('End Date')
         today = datetime.date.today()
-        if end_date is None:
-            end_date = date
-        elif end_date > today:
+        if end_date is None or end_date > today:
             end_date = today
         self._dates = []
         freq = data['Default Settings'].get('Frequency')
@@ -635,12 +635,12 @@ class RankPerfOperation(IterOperation):
 class RankRanksOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
-        date = self._data['Default Settings']['As of Date']['value']
+        date = self._data['Default Settings']['Start Date']
+        weekday = date.weekday()
+        date = date + datetime.timedelta(days=5 - weekday if weekday <= 5 else 6)
         end_date = self._data['Default Settings'].get('End Date')
         today = datetime.date.today()
-        if end_date is None:
-            end_date = date
-        elif end_date > today:
+        if end_date is None or end_date > today:
             end_date = today
         self._dates = []
         freq = data['Default Settings'].get('Frequency')
@@ -756,12 +756,17 @@ class RankRanksPeriodOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
         date = self._data['Default Settings']['Start Date']
-        end_date = self._data['Default Settings']['End Date']
+        weekday = date.weekday()
+        date = date + datetime.timedelta(days=5 - weekday if weekday <= 5 else 6)
+        end_date = self._data['Default Settings'].get('End Date')
         today = datetime.date.today()
-        if end_date > today:
+        if end_date is None or end_date > today:
             end_date = today
         self._dates = []
-        days = data_cons.FREQ_BY_LABEL[data['Default Settings']['Frequency'].lower()]['days']
+        freq = data['Default Settings'].get('Frequency')
+        if freq is None:
+            freq = data_cons.FREQ[1]['label']
+        days = data_cons.FREQ_BY_LABEL[freq.lower()]['days']
         while date <= end_date:
             self._dates.append(date)
             date = date + datetime.timedelta(days=days)

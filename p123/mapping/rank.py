@@ -17,8 +17,7 @@ RANKS_COMMON = {
         'isValid': validation.universe,
         'transform': transform.universe
     },
-    'As of Date': {
-        'field': 'asOfDt',
+    'Start Date': {
         'isValid': validation.date,
         'transform': transform.date,
         'required': True
@@ -64,21 +63,18 @@ RANKS['Additional Data'] = {
 }
 
 RANKS_PERIOD = RANKS_COMMON.copy()
-del RANKS_PERIOD['As of Date'], RANKS_PERIOD['Columns']
-RANKS_PERIOD['Start Date'] = {
+del RANKS_PERIOD['Columns']
+
+
+RANKS_MULTI_SETTINGS = RANKS_COMMON.copy()
+del RANKS_MULTI_SETTINGS['Start Date'], RANKS_MULTI_SETTINGS['End Date'], RANKS_MULTI_SETTINGS['Frequency'],\
+    RANKS_MULTI_SETTINGS['Ranking System'], RANKS_MULTI_SETTINGS['Ranking Method'], RANKS_MULTI_SETTINGS['Columns']
+RANKS_MULTI_SETTINGS['As of Date'] = {
+    'field': 'asOfDt',
     'isValid': validation.date,
     'transform': transform.date,
     'required': True
 }
-RANKS_PERIOD['End Date'] = dict(RANKS_PERIOD['End Date'])
-RANKS_PERIOD['End Date']['required'] = True
-RANKS_PERIOD['Frequency'] = dict(RANKS_PERIOD['Frequency'])
-RANKS_PERIOD['Frequency']['required'] = True
-
-
-RANKS_MULTI_SETTINGS = RANKS_COMMON.copy()
-del RANKS_MULTI_SETTINGS['End Date'], RANKS_MULTI_SETTINGS['Frequency'], RANKS_MULTI_SETTINGS['Ranking System'],\
-    RANKS_MULTI_SETTINGS['Ranking Method'], RANKS_MULTI_SETTINGS['Columns']
 RANKS_MULTI_ITERATIONS = mapping_init.ITERATIONS.copy()
 RANKS_MULTI_ITERATIONS['Ranking System'] = RANKS_COMMON['Ranking System']
 RANKS_MULTI_ITERATIONS['Ranking Method'] = RANKS_COMMON['Ranking Method']
