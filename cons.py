@@ -1,2 +1,2 @@
-NAME = 'Portfolio123 Data Miner'
-VERSION = '1.0'
+NAME = 'Portfolio123 DataMiner'
+VERSION = '1.1.0'
