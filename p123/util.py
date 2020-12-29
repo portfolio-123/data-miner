@@ -181,11 +181,13 @@ def process_rank_perf_result(json: dict, rows: list, port_mode: bool, precision)
 
     # Beta
     idx += 1
-    rows[idx].append(misc.round_or_none(json['stats']['beta'], precision) if port_mode else None)
+    rows[idx].append(misc.round_or_none(
+        json['stats']['beta'], precision) if port_mode and json['stats'].get('beta') else None)
 
     # Alpha
     idx += 1
-    rows[idx].append(misc.round_or_none(json['stats']['alpha'], precision) if port_mode else None)
+    rows[idx].append(misc.round_or_none(
+        json['stats']['alpha'], precision) if port_mode and json['stats'].get('alpha') else None)
 
     # Avg Number of Positions
     idx += 1
