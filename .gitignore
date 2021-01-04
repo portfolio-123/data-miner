@@ -2,6 +2,7 @@
 __pycache__/
 build/
 dist/
+samples/
 config.ini
 setup.py
 data_miner.spec

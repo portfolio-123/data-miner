@@ -273,31 +273,34 @@ class Gui(GuiBase):
                                    command=save_as_callback)
             self._main['menu_bar'].add_cascade(label='Input', underline=0, menu=input_menu)
 
-            samples_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
-            path = 'samples'
-            for level1 in os.listdir(path):
-                entry = os.path.join(path, level1)
-                if os.path.isfile(entry):
-                    samples_menu.add_command(label=level1)
-                else:
-                    regex = re.compile(rf'^{level1}(\s*-\s*)?|\.yaml$', re.IGNORECASE)
-                    entries = os.listdir(entry)
-                    if len(entries) == 1:
-                        name = regex.sub('', entries[0])
-                        samples_menu.add_command(
-                            label=f'{level1} - {name}',
-                            command=functools.partial(self._open_input_file, True, os.path.join(entry, entries[0]))
-                        )
+            try:
+                samples_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
+                path = 'samples'
+                for level1 in os.listdir(path):
+                    entry = os.path.join(path, level1)
+                    if os.path.isfile(entry):
+                        samples_menu.add_command(label=level1)
                     else:
-                        submenu = tk.Menu(tearoff=0)
-                        for level2 in entries:
-                            name = regex.sub('', level2)
-                            submenu.add_command(
-                                label=name,
-                                command=functools.partial(self._open_input_file, True, os.path.join(entry, level2))
+                        regex = re.compile(rf'^{level1}(\s*-\s*)?|\.yaml$', re.IGNORECASE)
+                        entries = os.listdir(entry)
+                        if len(entries) == 1:
+                            name = regex.sub('', entries[0])
+                            samples_menu.add_command(
+                                label=f'{level1} - {name}',
+                                command=functools.partial(self._open_input_file, True, os.path.join(entry, entries[0]))
                             )
-                        samples_menu.add_cascade(label=level1, menu=submenu)
-            self._main['menu_bar'].add_cascade(label='Samples', underline=1, menu=samples_menu)
+                        else:
+                            submenu = tk.Menu(tearoff=0)
+                            for level2 in entries:
+                                name = regex.sub('', level2)
+                                submenu.add_command(
+                                    label=name,
+                                    command=functools.partial(self._open_input_file, True, os.path.join(entry, level2))
+                                )
+                            samples_menu.add_cascade(label=level1, menu=submenu)
+                self._main['menu_bar'].add_cascade(label='Samples', underline=1, menu=samples_menu)
+            except Exception:
+                pass
 
             session_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
             session_menu.add_command(label=f'API ID: {self._api_client.get_api_id()}')
