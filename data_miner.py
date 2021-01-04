@@ -21,6 +21,7 @@ import platform
 from pathlib import Path
 from gui.scrolled_text_horizontal import ScrolledTextHorizontal
 import datetime
+import re
 
 
 class Gui(GuiBase):
@@ -272,11 +273,37 @@ class Gui(GuiBase):
                                    command=save_as_callback)
             self._main['menu_bar'].add_cascade(label='Input', underline=0, menu=input_menu)
 
+            samples_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
+            path = 'samples'
+            for level1 in os.listdir(path):
+                entry = os.path.join(path, level1)
+                if os.path.isfile(entry):
+                    samples_menu.add_command(label=level1)
+                else:
+                    regex = re.compile(rf'^{level1}(\s*-\s*)?|\.yaml$', re.IGNORECASE)
+                    entries = os.listdir(entry)
+                    if len(entries) == 1:
+                        name = regex.sub('', entries[0])
+                        samples_menu.add_command(
+                            label=f'{level1} - {name}',
+                            command=functools.partial(self._open_input_file, True, os.path.join(entry, entries[0]))
+                        )
+                    else:
+                        submenu = tk.Menu(tearoff=0)
+                        for level2 in entries:
+                            name = regex.sub('', level2)
+                            submenu.add_command(
+                                label=name,
+                                command=functools.partial(self._open_input_file, True, os.path.join(entry, level2))
+                            )
+                        samples_menu.add_cascade(label=level1, menu=submenu)
+            self._main['menu_bar'].add_cascade(label='Samples', underline=1, menu=samples_menu)
+
             session_menu = tk.Menu(self._main['menu_bar'], tearoff=0)
             session_menu.add_command(label=f'API ID: {self._api_client.get_api_id()}')
             session_menu.add_command(label='Logout', underline=0, accelerator="Ctrl+L", command=self._logout)
             session_menu.add_command(label='Quit', underline=0, accelerator="Ctrl+Q", command=self._on_close)
-            self._main['menu_bar'].add_cascade(label=f'Session', underline=0, menu=session_menu)
+            self._main['menu_bar'].add_cascade(label='Session', underline=0, menu=session_menu)
 
             self._main['menu_input_open_cmd'] = (input_menu, 0)
             self._main['menu_input_close_cmd'] = (input_menu, 1)
@@ -532,7 +559,7 @@ class Gui(GuiBase):
         self.toggle_state(self._main['menu_input_save_as_cmd' if save_as else 'menu_input_save_cmd'], True)
         self.toggle_state(self._main['input'], True)
 
-    def _open_input_file(self, init: bool = True):
+    def _open_input_file(self, init: bool = True, file_path: str = None):
         """
         Opens user selected file and dumps its content into the input scrolledtext element.
         Calls itself in a separate thread to avoid blocking and blocks operations that might cause a lock.
@@ -553,11 +580,12 @@ class Gui(GuiBase):
             self.toggle_state(self._main['btn_validate'])
             self.toggle_state(self._main['btn_execute'])
             self.toggle_state(self._main['input'])
-            threading.Thread(target=self._open_input_file, args=[False]).start()
+            threading.Thread(target=self._open_input_file, args=[False, file_path]).start()
             return
 
         try:
-            file_path = filedialog.askopenfilename(filetypes=[('yaml', '*.yaml'), ('All Files', '*.*')])
+            if file_path is None:
+                file_path = filedialog.askopenfilename(filetypes=[('yaml', '*.yaml'), ('All Files', '*.*')])
             if file_path:
                 with open(file_path) as stream:
                     if os.fstat(stream.fileno()).st_size <= 10000000:
@@ -569,7 +597,7 @@ class Gui(GuiBase):
 
                         self._main['opened_file'] = {
                             'path': file_path,
-                            'name': file_path.split('/')[-1]
+                            'name': re.split(r'[\\/]', file_path)[-1]
                         }
                         self.toggle_state(self._main['menu_input_close_cmd'], True)
                         self.toggle_state(self._main['menu_input_save_cmd'], True)
@@ -579,7 +607,8 @@ class Gui(GuiBase):
                         self._logger.error('File is too big (max 10Mb)')
         except OSError as e:
             self._logger.error(e)
-        except Exception:
+        except Exception as e:
+            print(e)
             self._logger.error('Internal error')
 
         self.toggle_state(self._main['menu_input_open_cmd'], True)
