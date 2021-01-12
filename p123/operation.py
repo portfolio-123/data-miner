@@ -28,27 +28,23 @@ class Operation:
             if 'On Error' in self._data['Main'] else True
 
         self._init_default_params()
-        if self.has_init_error():
-            return
         self._init_header_row()
         self._init_col_setup()
 
     def _init_default_params(self):
-        self._has_init_error = False
         try:
             self._default_params = util.generate_params(
                 data=self._data['Default Settings'], settings=self._data['Default Settings'],
                 api_client=self._api_client, logger=self._logger
             )
             if self._default_params is None:
-                self._has_init_error = True
-                return
+                raise InitException
             precision = self._data['Main'].get('Precision')
             if precision is not None:
                 self._default_params['precision'] = precision
         except ClientException as e:
             self._logger.error(e)
-            self._has_init_error = True
+            raise InitException
 
     def _init_col_setup(self):
         self._col_setup = []
@@ -70,9 +66,6 @@ class Operation:
 
     def get_name(self):
         return self._data['Main'].get('Operation')
-
-    def has_init_error(self):
-        return self._has_init_error
 
     def pause(self):
         self._paused = True
@@ -112,16 +105,18 @@ class Operation:
         self._output.configure(state='disabled')
 
     def run(self):
+        exc = None
         try:
             run_outcome = self._run()
         except Exception as e:
-            print(e)
-            self._logger.error('Internal error')
+            exc = e
             run_outcome = False
         if run_outcome is not None:
             self._finished = True
             if run_outcome:
                 self._logger.info(f"Done ({self._data['Main']['Operation']})")
+        if exc is not None:
+            raise exc
 
     def _run(self):
         """
@@ -137,10 +132,12 @@ class Operation:
 
     @staticmethod
     def init(*, api_client, data, output, logger: logging.Logger):
-        operation = OPERATIONS.get(data['Main']['Operation'].lower())['class'](
-            api_client=api_client, data=data, output=output, logger=logger
-        )
-        return operation if not operation.has_init_error() else None
+        try:
+            return OPERATIONS.get(data['Main']['Operation'].lower())['class'](
+                api_client=api_client, data=data, output=output, logger=logger
+            )
+        except InitException:
+            pass
 
 
 class IterOperation(Operation):
@@ -159,7 +156,8 @@ class IterOperation(Operation):
         pass
 
     def _check_api_item_change(self, iter_params):
-        if self._default_params.get('screen'):
+        screen = self._default_params.get('screen')
+        if misc.is_dict(screen):
             for change in IterOperation._api_item_change_checks:
                 if self._default_params['screen'].get(change[0]) == change[1]:
                     if iter_params.get('screen') and iter_params['screen'].get(change[0]) == change[1]:
@@ -550,8 +548,6 @@ class RankPerfOperation(IterOperation):
 
     def _init_default_params(self):
         super()._init_default_params()
-        if self.has_init_error():
-            return
         if 'screen' not in self._default_params:
             self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
 
@@ -901,6 +897,10 @@ class OperationPausedException(Exception):
 
 
 class IterationFailedException(Exception):
+    pass
+
+
+class InitException(Exception):
     pass
 
 

@@ -63,6 +63,7 @@ SCREEN = {
 
 SCREEN_RUN = {
     'Screen': {
+        'type': 'screen',
         'field': 'screen',
         'isValid': misc.is_int
     },
@@ -85,6 +86,7 @@ SCREEN_RUN_SETTINGS.update(SCREEN_RUN)
 
 SCREEN_BACKTEST_SHARED = {
     'Screen': {
+        'type': 'screen',
         'field': 'screen',
         'isValid': misc.is_int
     },

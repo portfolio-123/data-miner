@@ -22,6 +22,7 @@ from pathlib import Path
 from gui.scrolled_text_horizontal import ScrolledTextHorizontal
 import datetime
 import re
+import traceback
 
 
 class Gui(GuiBase):
@@ -287,7 +288,9 @@ class Gui(GuiBase):
                             name = regex.sub('', entries[0])
                             samples_menu.add_command(
                                 label=f'{level1} - {name}',
-                                command=functools.partial(self._open_input_file, True, os.path.join(entry, entries[0]))
+                                command=functools.partial(
+                                    self._open_input_file, True, os.path.join(entry, entries[0]), True
+                                )
                             )
                         else:
                             submenu = tk.Menu(tearoff=0)
@@ -295,7 +298,8 @@ class Gui(GuiBase):
                                 name = regex.sub('', level2)
                                 submenu.add_command(
                                     label=name,
-                                    command=functools.partial(self._open_input_file, True, os.path.join(entry, level2))
+                                    command=functools.partial(
+                                        self._open_input_file, True, os.path.join(entry, level2), True)
                                 )
                             samples_menu.add_cascade(label=level1, menu=submenu)
                 self._main['menu_bar'].add_cascade(label='Samples', underline=1, menu=samples_menu)
@@ -333,19 +337,24 @@ class Gui(GuiBase):
         GuiBase.bind_ci(self._window, True, modifier='Control', letter='e', callback=self._execute)
 
     # noinspection PyUnusedLocal
-    def _close_input_file(self, *args):
+    def _close_input_file(self, init: bool = True):
         if self.state_disabled(self._main['menu_input_close_cmd']):
             return
 
-        if self._main.get('input_changed'):
-            if not messagebox.askokcancel(
-                    'Close file', 'Unsaved changes will be lost, are you sure you want to continue?'):
-                return
+        if init:
+            if self._main.get('input_changed'):
+                if not messagebox.askokcancel(
+                        'Close file', 'Unsaved changes will be lost, are you sure you want to continue?'):
+                    return
+            return threading.Thread(target=self._close_input_file, args=[False]).start()
+
+        self._input_text_modified_event_toggle(False)
+        self._main['input'].delete('1.0', tk.END)
+        self._input_text_modified_event_toggle()
 
         self.toggle_state(self._main['menu_input_close_cmd'])
         self.toggle_state(self._main['menu_input_save_cmd'])
         del self._main['opened_file']
-        self._main['input'].delete('1.0', tk.END)
         self._update_displayed_file_name()
 
     def _destroy_menu(self):
@@ -388,10 +397,21 @@ class Gui(GuiBase):
         self._main['input'].pack(side='right', fill='both', expand=True)
         self._main['input'].bind('<Tab>', self._input_tab_to_spaces)
         self._main['input'].bind('<<Paste>>', self._handle_input_paste)
-        self._main['input'].bind('<<TextModified>>', functools.partial(self._update_displayed_file_name, True))
+        self._input_text_modified_event_toggle()
         GuiBase.bind_ci(
             self._main['input'], modifier='Control', letter='o',
             callback=lambda x: self._open_input_file(True) or 'break')
+
+    def _input_text_modified_event_toggle(self, state: bool = True):
+        if self._main.get('input_text_modified_callback') is None:
+            self._main['input_text_modified_callback'] = functools.partial(self._update_displayed_file_name, True)
+        if state:
+            if self._main.get('input_text_modified_unbind') is None:
+                self._main['input_text_modified_unbind'] =\
+                    self._main['input'].bind('<<TextModified>>', self._main['input_text_modified_callback'])
+        elif self._main.get('input_text_modified_unbind'):
+            self._main['input'].unbind('<<TextModified>>', self._main['input_text_modified_unbind'])
+            del self._main['input_text_modified_unbind']
 
     # noinspection PyUnusedLocal
     @staticmethod
@@ -472,6 +492,7 @@ class Gui(GuiBase):
         except OSError as e:
             self._logger.error(e)
         except Exception:
+            print_to_log(traceback.format_exc())
             self._logger.error('Internal error')
 
         self.toggle_state(self._main['btn_execute'], True)
@@ -504,6 +525,7 @@ class Gui(GuiBase):
             else:
                 self._logger.error('Output is empty')
         except Exception:
+            print_to_log(traceback.format_exc())
             self._logger.error('Internal error')
 
         self.toggle_state(self._main['btn_execute'], True)
@@ -555,6 +577,7 @@ class Gui(GuiBase):
         except OSError as e:
             self._logger.error(e)
         except Exception:
+            print_to_log(traceback.format_exc())
             self._logger.error('Internal error')
 
         self.toggle_state(self._main['menu_input_open_cmd'], True)
@@ -562,7 +585,7 @@ class Gui(GuiBase):
         self.toggle_state(self._main['menu_input_save_as_cmd' if save_as else 'menu_input_save_cmd'], True)
         self.toggle_state(self._main['input'], True)
 
-    def _open_input_file(self, init: bool = True, file_path: str = None):
+    def _open_input_file(self, init: bool = True, file_path: str = None, anonymous_mode: bool = False):
         """
         Opens user selected file and dumps its content into the input scrolledtext element.
         Calls itself in a separate thread to avoid blocking and blocks operations that might cause a lock.
@@ -583,7 +606,7 @@ class Gui(GuiBase):
             self.toggle_state(self._main['btn_validate'])
             self.toggle_state(self._main['btn_execute'])
             self.toggle_state(self._main['input'])
-            threading.Thread(target=self._open_input_file, args=[False, file_path]).start()
+            threading.Thread(target=self._open_input_file, args=[False, file_path, anonymous_mode]).start()
             return
 
         try:
@@ -594,24 +617,34 @@ class Gui(GuiBase):
                     if os.fstat(stream.fileno()).st_size <= 10000000:
                         content = stream.read().replace('\t', ' ' * 4)
                         self.toggle_state(self._main['input'], True)
+
+                        self._input_text_modified_event_toggle(False)
                         self._main['input'].delete('1.0', tk.END)
                         self._main['input'].insert(tk.END, content)
+                        self._input_text_modified_event_toggle()
+
                         self._logger.info(f'File "{file_path}" loaded')
 
-                        self._main['opened_file'] = {
-                            'path': file_path,
-                            'name': re.split(r'[\\/]', file_path)[-1]
-                        }
-                        self.toggle_state(self._main['menu_input_close_cmd'], True)
-                        self.toggle_state(self._main['menu_input_save_cmd'], True)
+                        if anonymous_mode:
+                            if self._main.get('opened_file') is not None:
+                                del self._main['opened_file']
+                                self.toggle_state(self._main['menu_input_close_cmd'])
+                                self.toggle_state(self._main['menu_input_save_cmd'])
+                        else:
+                            self._main['opened_file'] = {
+                                'path': file_path,
+                                'name': re.split(r'[\\/]', file_path)[-1]
+                            }
+                            self.toggle_state(self._main['menu_input_close_cmd'], True)
+                            self.toggle_state(self._main['menu_input_save_cmd'], True)
                         self._update_displayed_file_name()
                         self._main['notebook'].select(0)
                     else:
                         self._logger.error('File is too big (max 10Mb)')
         except OSError as e:
             self._logger.error(e)
-        except Exception as e:
-            print(e)
+        except Exception:
+            print_to_log(traceback.format_exc())
             self._logger.error('Internal error')
 
         self.toggle_state(self._main['menu_input_open_cmd'], True)
@@ -664,6 +697,7 @@ class Gui(GuiBase):
         try:
             self._validate_yaml_input()
         except Exception:
+            print_to_log(traceback.format_exc())
             self._logger.error('Internal error')
 
         self.toggle_state(self._main['menu_input_open_cmd'], True)
@@ -723,8 +757,9 @@ class Gui(GuiBase):
                     )
             if self._operation is not None and not self._operation.is_finished():
                 self._operation.run()
-        except OSError as e:
-            self._logger.error(e)
+        except Exception:
+            print_to_log(traceback.format_exc())
+            self._logger.error('Internal error')
 
         if self._operation is None or not self._operation.is_paused() or self._operation.is_finished():
             self._execute_stop(False)
@@ -754,6 +789,16 @@ class Gui(GuiBase):
 
     def _clear_console(self):
         self._logger_handler.clear()
+
+
+def print_to_log(msg):
+    try:
+        with open('app.log', 'a') as stream:
+            stream.write(str(datetime.datetime.now()) + '\n')
+            stream.write(msg)
+            stream.write('\n')
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':

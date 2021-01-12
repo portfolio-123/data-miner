@@ -26,12 +26,17 @@ def generate_params(*, data: dict, settings, api_client: Client, logger: logging
             return
         target = params
         if meta_info.get('type') == 'screen':
-            if 'screen' not in params:
-                params['screen'] = {'type': settings['Type']}
-            elif not misc.is_dict(params['screen']):
-                logger.error('Invalid screen (mixing definition and ID)')
-                return
-            target = params['screen']
+            if meta_info.get('field') == 'screen':
+                if misc.is_dict(params.get('screen')):
+                    logger.error('Invalid screen (mixing definition and ID)')
+                    return
+            else:
+                if 'screen' not in params:
+                    params['screen'] = {'type': settings['Type']}
+                elif not misc.is_dict(params['screen']):
+                    logger.error('Invalid screen (mixing definition and ID)')
+                    return
+                target = params['screen']
         target[meta_info['field']] = value
     return params
 

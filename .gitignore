@@ -3,6 +3,8 @@ __pycache__/
 build/
 dist/
 samples/
+reference/
+app.log
 config.ini
 setup.py
 data_miner.spec
