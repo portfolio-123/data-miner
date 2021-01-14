@@ -265,7 +265,7 @@ class ScreenRunOperation(Operation):
             {'name': 'Name', 'justify': 'left', 'length': max_len},
             'Last'
         ]
-        if len(self._result[0]) == 5:
+        if len(self._result) and len(self._result[0]) == 5:
             self._header_row.append('Rank')
         self._init_col_setup()
         self._result.insert(0, self._header_row)

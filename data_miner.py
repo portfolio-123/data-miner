@@ -797,6 +797,7 @@ def print_to_log(msg):
             stream.write(str(datetime.datetime.now()) + '\n')
             stream.write(msg)
             stream.write('\n')
+            print(msg)
     except Exception:
         pass
 
