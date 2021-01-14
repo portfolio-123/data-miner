@@ -37,7 +37,10 @@ def generate_params(*, data: dict, settings, api_client: Client, logger: logging
                     logger.error('Invalid screen (mixing definition and ID)')
                     return
                 target = params['screen']
-        target[meta_info['field']] = value
+        if meta_info['field'] == 'rules' and misc.is_list(target.get(meta_info['field'])) and misc.is_list(value):
+            target[meta_info['field']] += value
+        else:
+            target[meta_info['field']] = value
     return params
 
 
