@@ -252,21 +252,32 @@ class ScreenRunOperation(Operation):
     def __init__(self, *, api_client, data, output, logger: logging.Logger):
         super().__init__(api_client=api_client, data=data, output=output, logger=logger)
 
-    def _init_header_row_custom(self):
-        self._header_row = [{'name': 'P123 UID', 'justify': 'left', 'length': 10}]
-        max_len = 0
+    def _init_header_row_custom(self, columns: list):
+        name_idx = 0
+        for (idx, column) in enumerate(columns):
+            if column == 'Name':
+                name_idx = idx
+                break
+
+        max_ticker_len = 0
+        max_name_len = 0
         for row in self._result[:100]:
-            max_len = max(max_len, len(row[1]))
-        self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_len})
-        max_len = 0
-        for row in self._result[:100]:
-            max_len = max(max_len, len(row[2]))
-        self._header_row += [
-            {'name': 'Name', 'justify': 'left', 'length': max_len},
-            'Last'
-        ]
-        if len(self._result) and len(self._result[0]) == 5:
-            self._header_row.append('Rank')
+            max_ticker_len = max(max_ticker_len, len(row[1]))
+            max_name_len = max(max_name_len, len(row[name_idx]))
+
+        self._header_row = []
+        for column in columns:
+            if column == 'P123 UID':
+                self._header_row.append({'name': 'P123 UID', 'justify': 'left', 'length': 10})
+            elif column == 'Ticker':
+                self._header_row.append({'name': 'Ticker', 'justify': 'left', 'length': max_ticker_len})
+            elif column == 'Trans':
+                self._header_row.append({'name': 'Trans', 'justify': 'left'})
+            elif column == 'Name':
+                self._header_row.append({'name': 'Name', 'justify': 'left', 'length': max_name_len})
+            else:
+                self._header_row.append(column)
+
         self._init_col_setup()
         self._result.insert(0, self._header_row)
         self._write_row_to_output(self._header_row, False)
@@ -277,7 +288,7 @@ class ScreenRunOperation(Operation):
                 self._default_params['screen'] = {'type': self._data['Default Settings']['Type']}
             json = self._api_client.screen_run(self._default_params)
             self._result += json['rows']
-            self._init_header_row_custom()
+            self._init_header_row_custom(json['columns'])
             for row in self._result[1:101]:
                 self._write_row_to_output(row)
             if len(self._result) > 101:
