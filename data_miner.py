@@ -59,7 +59,7 @@ class Gui(GuiBase):
         api_key = self._config.get('API', 'key') if self._config.has_option('API', 'key') else None
         if api_id and api_key:
             self._api_client = Client(api_id=api_id, api_key=api_key)
-            self._api_client.set_timeout(3600)
+            self._api_client.set_timeout(3601)
             if self._config.has_option('API', 'endpoint'):
                 endpoint = self._config.get('API', 'endpoint')
                 if endpoint:
