@@ -286,24 +286,15 @@ class Gui(GuiBase):
                     else:
                         regex = re.compile(rf'^{level1}(\s*-\s*)?|\.yaml$', re.IGNORECASE)
                         entries = os.listdir(entry)
-                        if len(entries) == 1:
-                            name = regex.sub('', entries[0])
-                            samples_menu.add_command(
-                                label=f'{level1} - {name}',
+                        submenu = tk.Menu(tearoff=0)
+                        for level2 in entries:
+                            name = regex.sub('', level2)
+                            submenu.add_command(
+                                label=name,
                                 command=functools.partial(
-                                    self._open_input_file, True, os.path.join(entry, entries[0]), True
-                                )
+                                    self._open_input_file, True, os.path.join(entry, level2), True)
                             )
-                        else:
-                            submenu = tk.Menu(tearoff=0)
-                            for level2 in entries:
-                                name = regex.sub('', level2)
-                                submenu.add_command(
-                                    label=name,
-                                    command=functools.partial(
-                                        self._open_input_file, True, os.path.join(entry, level2), True)
-                                )
-                            samples_menu.add_cascade(label=level1, menu=submenu)
+                        samples_menu.add_cascade(label=level1, menu=submenu)
                 self._main['menu_bar'].add_cascade(label='Samples', underline=1, menu=samples_menu)
             except Exception:
                 pass
