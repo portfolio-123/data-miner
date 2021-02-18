@@ -35,7 +35,11 @@ class Gui(GuiBase):
 
         config_file = 'config.ini'
         if platform.system() == 'Darwin':
-            app_user_folder = '{}/Library/Preferences/P123 Data Miner'.format(Path.home())
+            app_user_folder = '{}/Library/Preferences/DataMiner'.format(Path.home())
+            Path(app_user_folder).mkdir(parents=True, exist_ok=True)
+            config_file = app_user_folder + '/' + config_file
+        elif platform.system() == 'Windows':
+            app_user_folder = '{}/DataMiner'.format(Path.home())
             Path(app_user_folder).mkdir(parents=True, exist_ok=True)
             config_file = app_user_folder + '/' + config_file
         self._config = Config(self._logger, config_file)
