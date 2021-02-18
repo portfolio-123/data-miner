@@ -2,9 +2,9 @@
 __pycache__/
 build/
 dist/
-samples/
-reference/
+Output/
 app.log
 config.ini
 setup.py
 data_miner.spec
+installer.iss
