@@ -39,6 +39,16 @@ SETTINGS = {
         'isValid': validation.data_tickers_cusips,
         'transform': transform.data_items
     },
+    'Gvkeys': {
+        'field': 'gvkeys',
+        'isValid': validation.data_tickers_cusips,
+        'transform': transform.data_items
+    },
+    'Ciks': {
+        'field': 'ciks',
+        'isValid': validation.data_tickers_cusips,
+        'transform': transform.data_items
+    },
     'Formulas': {
         'isValid': validation.data_univ_formulas,
         'required': True

@@ -235,27 +235,34 @@ def validate_data_settings(settings, logger: logging.Logger):
     items_def_cnt += 1 if 'P123 UIDs' in settings else 0
     items_def_cnt += 1 if 'Tickers' in settings else 0
     items_def_cnt += 1 if 'Cusips' in settings else 0
+    items_def_cnt += 1 if 'Gvkeys' in settings else 0
+    items_def_cnt += 1 if 'Ciks' in settings else 0
     if not items_def_cnt:
         logger.error('"Default Settings" section needs to contain one of the following properties: '
-                     '"P123 UIDs", "Tickers" or "Cusips"')
+                     '"P123 UIDs", "Tickers", "Cusips", "Gvkeys" or "Ciks"')
         return False
     if items_def_cnt > 1:
         logger.error('"Default Settings" section can only contain one of the following properties: '
-                     '"P123 UIDs", "Tickers" or "Cusips"')
+                     '"P123 UIDs", "Tickers", "Cusips", "Gvkeys" or "Ciks"')
         return False
 
     if 'P123 UIDs' in settings:
         items = settings['P123 UIDs']
     elif 'Tickers' in settings:
         items = settings['Tickers']
-    else:
+    elif 'Cusips' in settings:
         items = settings['Cusips']
+    elif 'Gvkeys' in settings:
+        items = settings['Gvkeys']
+    else:
+        items = settings['Ciks']
     if misc.is_int(items):
         items = [items]
     elif misc.is_str(items):
         items = items.split(' ')
     items_cnt = len(items)
-    if items_cnt > 50:
-        logger.error('"Default Settings" can only contain at most 50 "P123 UIDs", "Tickers" or "Cusips"')
+    if items_cnt > 100:
+        logger.error('"Default Settings" can only contain at most 100 '
+                     '"P123 UIDs", "Tickers", "Cusips", "Gvkeys" or "Ciks"')
         return False
     return True
