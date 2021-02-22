@@ -38,7 +38,7 @@ class Gui(GuiBase):
             app_user_folder = '{}/Library/Preferences/DataMiner'.format(Path.home())
             Path(app_user_folder).mkdir(parents=True, exist_ok=True)
             config_file = app_user_folder + '/' + config_file
-        elif platform.system() == 'Windows':
+        elif platform.system() == 'Windows' or platform.system() == 'Linux':
             app_user_folder = '{}/DataMiner'.format(Path.home())
             Path(app_user_folder).mkdir(parents=True, exist_ok=True)
             config_file = app_user_folder + '/' + config_file
