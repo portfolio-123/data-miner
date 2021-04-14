@@ -488,6 +488,10 @@ class DataUniverseOperation(Operation):
         if self._include_names:
             self._include_names = self._include_names['value']
 
+    def _init_default_params(self):
+        super()._init_default_params()
+        self._default_params['type'] = self._data['Default Settings']['Type']
+
     def _init_header_row_custom(self):
         self._header_row = [
             {'name': 'Date', 'justify': 'left', 'length': 10},
